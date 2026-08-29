@@ -3,10 +3,10 @@ services:
     build:
       context: ./docker/php
     container_name: kb-app
-    working_dir: /var/www/html
+    working_dir: /var/www/html/laravel
     volumes:
       - ./backend:/var/www/html
-      - ./storage/documents:/var/www/html/storage/app/documents
+      - ./storage/documents:/var/www/html/laravel/storage/app/documents
     depends_on:
       mysql:
         condition: service_healthy
@@ -61,7 +61,7 @@ services:
     image: redis:7-alpine
     container_name: kb-redis
     command: redis-server --appendonly yes
-    ports: ["6379:6379"]
+    ports: ["6380:6379"]
     volumes: [redis_data:/data]
     networks: [kb]
 
