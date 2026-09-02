@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { MessageSquare, ShieldCheck, FileText, Database } from 'lucide-react';
+import Login from './pages/Login';
 
 function UserChat() {
   return (
@@ -68,6 +69,12 @@ export default function App() {
           </div>
           <nav className="flex gap-4">
             <Link
+              to="/login"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition"
+            >
+              Login
+            </Link>
+            <Link
               to="/chat"
               className="px-3 py-1.5 rounded-md text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition"
             >
@@ -82,11 +89,13 @@ export default function App() {
           </nav>
         </header>
 
-        <main className="flex-1 flex">
+        <main className="flex justify-center flex-1 p-6">
           <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/chat" element={<UserChat />} />
             <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="*" element={<Navigate to="/chat" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </main>
       </div>
