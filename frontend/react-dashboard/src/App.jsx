@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { setLoadingGlobalFn, setUnauthorizedHandlerFn } from './axios';
+import api from './axios'; // Import our axios instance
+import toast from 'react-hot-toast';
 import { MessageSquare, ShieldCheck, FileText, Database } from 'lucide-react';
 import Login from './pages/Login';
+import Register from './pages/Register';
 
 const getStoredAuth = () => {
   const token = localStorage.getItem('token');
@@ -106,20 +109,31 @@ function AppRoutes() {
     setAuth({ user, token });
   }, []);
 
+  const handleRegister = useCallback((user, token) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    setAuth({ user, token });
+    if (user.role === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/chat');
+    }
+  }, [navigate]);
+
   const handleLogout = useCallback(async () => {
     const token = localStorage.getItem('token');
 
     if (token) {
       try {
-        await axios.post(
-          'http://localhost:82/api/logout',
+        await api.post(
+          '/logout',
           {},
           {
             headers: {
               Accept: 'application/json',
               Authorization: `Bearer ${token}`,
             },
-          },
+          }
         );
       } catch {
         // Local logout should still complete if the token is already expired or revoked.
@@ -129,10 +143,21 @@ function AppRoutes() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setAuth({ token: null, user: null });
+    toast.success('Logged out successfully');
     navigate('/login', { replace: true });
   }, [navigate]);
 
   const dashboardPath = auth.user?.role === 'admin' ? '/admin' : '/chat';
+
+  // Let's add a loading state directly here
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    setLoadingGlobalFn(setLoading);
+    setUnauthorizedHandlerFn(() => {
+      handleLogout();
+    });
+  }, [setLoading, handleLogout]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
@@ -169,6 +194,13 @@ function AppRoutes() {
       </header>
 
       <main className="flex justify-center flex-1 p-6">
+        {loading && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="text-white text-lg">
+              Loading...
+            </div>
+          </div>
+        )}
         <Routes>
           <Route path="/" element={<Navigate to={auth.token ? dashboardPath : '/login'} replace />} />
           <Route
@@ -190,6 +222,10 @@ function AppRoutes() {
           <Route
             path="/login"
             element={auth.token ? <Navigate to={dashboardPath} replace /> : <Login onLogin={handleLogin} />}
+          />
+          <Route
+            path="/register"
+            element={auth.token ? <Navigate to={dashboardPath} replace /> : <Register onRegister={handleRegister} />}
           />
           <Route path="/logout" element={<Logout onLogout={handleLogout} />} />
           <Route path="*" element={<Navigate to={auth.token ? dashboardPath : '/login'} replace />} />

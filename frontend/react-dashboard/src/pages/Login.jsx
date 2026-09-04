@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from '../axios';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -12,8 +13,9 @@ export default function Login({ onLogin }) {
     e.preventDefault();
     setError('');
     try {
-      const res = await axios.post('http://localhost:82/api/login', { email, password });
+      const res = await api.post('/login', { email, password });
       onLogin(res.data.user, res.data.token);
+      toast.success('Login successful!');
       if (res.data.user.role === 'admin') {
         navigate('/admin');
       } else {
@@ -21,6 +23,7 @@ export default function Login({ onLogin }) {
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
+      toast.error(err.response?.data?.message || 'Login failed');
     }
   };
 
