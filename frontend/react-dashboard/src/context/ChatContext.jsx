@@ -9,21 +9,72 @@ export const useChat = () => {
   return ctx;
 };
 
-// Phase 0 shell — Phase 1 wires REST/SSE.
+// Phase 1: REST list + cursor messages + SSE streaming state.
 export const ChatProvider = ({ children }) => {
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [streaming, setStreaming] = useState(false);
+  const [quota, setQuota] = useState(null);
 
-  const selectConversation = useCallback((id) => {
+  const refreshConversations = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const res = await fetch('http://localhost:82/api/conversations', {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const json = await res.json();
+    const list = json.data ?? json ?? [];
+    setConversations(list);
+    if (!activeId && list.length > 0) setActiveId(list[0].id);
+  }, [activeId]);
+
+  const createConversation = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch('http://localhost:82/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const convo = json.conversation;
+    setConversations((prev) => [convo, ...prev]);
+    setActiveId(convo.id);
+    setMessages([]);
+
+    return convo;
+  }, []);
+
+  const selectConversation = useCallback(async (id) => {
     setActiveId(id);
     setMessages([]);
+    const token = localStorage.getItem('token');
+    const res = await fetch(`http://localhost:82/api/conversations/${id}/messages?limit=20`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const json = await res.json();
+    setMessages(json.data ?? []);
+  }, []);
+
+  const refreshQuota = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const res = await fetch('http://localhost:82/api/quotas', {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setQuota(await res.json());
   }, []);
 
   return (
     <ChatContext.Provider
-      value={{ conversations, setConversations, activeId, selectConversation, messages, setMessages, streaming, setStreaming }}
+      value={{
+        conversations, setConversations, refreshConversations, createConversation,
+        activeId, selectConversation, messages, setMessages,
+        streaming, setStreaming, quota, refreshQuota,
+      }}
     >
       {children}
     </ChatContext.Provider>

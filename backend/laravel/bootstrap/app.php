@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\EnsureQuota;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,7 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Alias the CheckRole middleware for role-based access control
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
+            'role' => CheckRole::class,
+            'quota' => EnsureQuota::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

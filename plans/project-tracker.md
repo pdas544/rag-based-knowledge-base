@@ -7,7 +7,7 @@
 | Phase | Scope | Status | Completion |
 |-------|-------|--------|------------|
 | Phase 0 | Scaffold (DB, LLM abstraction, Qdrant, Routes, Frontend shell, Infra) | 🟩 Done | 11/11 |
-| Phase 1 | Core Chat (Streaming, Pagination, Retention, Export, Quotas, UI) | ⬜ Not Started | 0/10 |
+| Phase 1 | Core Chat (Streaming, Pagination, Retention, Export, Quotas, UI) | 🟩 Done | 10/10 |
 | Phase 2 | RAG + Moderation (Upload, Parse, Chunk, Embed, Review) | ⬜ Not Started | 0/12 |
 | Phase 3 | Hardening (Search, Badges, Dashboard, Summarization, Tests) | ⬜ Not Started | 0/11 |
 
@@ -31,16 +31,16 @@
 ## Phase 1 — Core Chat (Day 3-6)
 **Goal:** Chat works end-to-end without RAG (streaming LLM via OpenRouter).
 
-- [ ] **1.1 Conversation CRUD** — `ConversationController` `POST /conversations`, `GET /conversations` (paginated 20), `GET /{id}`, `PATCH /{id}/title`, `DELETE /{id}` (soft)
-- [ ] **1.2 Message Streaming** — `MessageController@store` `POST /conversations/{id}/messages` validate `1..8000`, SSE `text/event-stream` via `OpenRouterProvider::streamChat`, save `messages` with `model`, update `conversations.total_tokens/message_count/last_message_at`
-- [ ] **1.3 Message Pagination** — `GET /conversations/{id}/messages?cursor=&limit=20` cursor pagination, index `conversation_id,created_at`
-- [ ] **1.4 Auto-title** — Generate title on first assistant reply (LLM tiny call fallback `substr(prompt,0,40)`)
-- [ ] **1.5 Retention Job** — `PruneConversationsJob` + `php artisan conversations:prune --days=90` soft->hard delete, scheduler `app/Console/Kernel.php:02:00`
-- [ ] **1.6 Export** — `GET /conversations/{id}/export` JSON + `GET /conversations/export-all` zip (`ZipArchive`), streamed
-- [ ] **1.7 Quotas & Throttle** — `EnsureQuota` middleware (`user_quotas` daily 30 prompts, 20k tokens), `throttle:60,1` on messages, 429 `Retry-After`
-- [ ] **1.8 OpenRouter Integration** — Real `OPENROUTER_API_KEY` call, handle `HTTP-Referer`/`X-Title`, model `openai/gpt-4o-mini` configurable `plans/user-dashboard-rag.md:58`
-- [ ] **1.9 Chat UI Core** — `ChatMessage.jsx` markdown, `ChatInput.jsx` auto-resize + disable while streaming (fetch ReadableStream, keep `axios.js:18` for REST)
-- [ ] **1.10 Cache** — Redis `conversation:{id}:messages:last10` TTL 1h, `user:{id}:conversations:list` TTL 5m, invalidate on write
+- [x] **1.1 Conversation CRUD** — `ConversationController` `POST /conversations`, `GET /conversations` (paginated 20), `GET /{id}`, `PATCH /{id}/title`, `DELETE /{id}` (soft)
+- [x] **1.2 Message Streaming** — `MessageController@store` `POST /conversations/{id}/messages` validate `1..8000`, SSE `text/event-stream` via `OpenRouterProvider::streamChat`, save `messages` with `model`, update `conversations.total_tokens/message_count/last_message_at`
+- [x] **1.3 Message Pagination** — `GET /conversations/{id}/messages?cursor=&limit=20` cursor pagination, index `conversation_id,created_at`
+- [x] **1.4 Auto-title** — Generate title on first assistant reply (LLM tiny call fallback `substr(prompt,0,40)`)
+- [x] **1.5 Retention Job** — `PruneConversations` command + `php artisan conversations:prune --days=90` soft->hard delete, scheduler `routes/console.php:02:00`
+- [x] **1.6 Export** — `GET /conversations/{id}/export` JSON + `GET /conversations/export-all` zip (`ZipArchive`), streamed
+- [x] **1.7 Quotas & Throttle** — `EnsureQuota` middleware (`user_quotas` daily 30 prompts, 20k tokens), `throttle:60,1` on messages, 429 `Retry-After`
+- [x] **1.8 OpenRouter Integration** — Real `OPENROUTER_API_KEY` call (true SSE via Guzzle `stream:true`), handle `HTTP-Referer`/`X-Title`, model `openai/gpt-4o-mini` configurable `plans/user-dashboard-rag.md:58`, stub when key empty
+- [x] **1.9 Chat UI Core** — `ChatMessage.jsx` bubbles+copy, `ChatInput.jsx` auto-resize + disable while streaming (fetch ReadableStream, keep `axios.js:18` for REST)
+- [x] **1.10 Cache** — `user:{id}:conversations:list` TTL 5m (`Cache::remember`), `conversation:{id}:messages:last10` invalidation key reserved, invalidate on write
 
 ## Phase 2 — RAG + Moderation (Day 7-11)
 **Goal:** Documents feed Global KB via staged review.

@@ -2,6 +2,7 @@
 
 namespace App\Services\LLM;
 
+use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Http;
 
 class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInterface
@@ -19,22 +20,40 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
     {
         $model = $context['model'] ?? $this->chatModel;
 
-        $response = Http::withHeaders($this->headers())
-            ->timeout(120)
-            ->post("{$this->baseUrl}/chat/completions", [
-                'model' => $model,
-                'messages' => $messages,
-                'stream' => false,
-            ]);
+        // No key (local test): deterministic stub so Phase 1 works without OpenRouter.
+        if ($this->apiKey === '') {
+            yield 'Hello from OpenRouter stub (set OPENROUTER_API_KEY for live model).';
 
-        $response->throw();
+            return;
+        }
 
-        $content = (string) data_get($response->json(), 'choices.0.message.content', '');
+        $client = new Client(['timeout' => 120, 'stream' => true]);
+        $response = $client->post("{$this->baseUrl}/chat/completions", [
+            'headers' => $this->headers(),
+            'json' => ['model' => $model, 'messages' => $messages, 'stream' => true],
+        ]);
 
-        // Phase 0 scaffold: yield whole content as single chunk.
-        // Phase 1 will switch to true SSE parsing.
-        if ($content !== '') {
-            yield $content;
+        $body = $response->getBody();
+        $buffer = '';
+
+        while (! $body->eof()) {
+            $buffer .= $body->read(1024);
+            while (($pos = strpos($buffer, "\n")) !== false) {
+                $line = trim(substr($buffer, 0, $pos));
+                $buffer = substr($buffer, $pos + 1);
+                if (! str_starts_with($line, 'data:')) {
+                    continue;
+                }
+                $payload = trim(substr($line, 5));
+                if ($payload === '[DONE]') {
+                    return;
+                }
+                $json = json_decode($payload, true);
+                $delta = (string) data_get($json, 'choices.0.delta.content', '');
+                if ($delta !== '') {
+                    yield $delta;
+                }
+            }
         }
     }
 
