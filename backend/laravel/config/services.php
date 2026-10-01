@@ -35,4 +35,22 @@ return [
         ],
     ],
 
+    'llm' => [
+        'driver' => env('LLM_DRIVER', 'openrouter'),
+        'chat_model' => env('OPENROUTER_CHAT_MODEL', 'openai/gpt-4o-mini'),
+        'embedding_model' => env('OPENROUTER_EMBEDDING_MODEL', 'openai/text-embedding-3-small'),
+        'embedding_dim' => (int) env('EMBEDDING_DIM', 1536),
+        'openrouter_api_key' => env('OPENROUTER_API_KEY', ''),
+        'openrouter_base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+        'app_url' => env('OPENROUTER_APP_URL', env('APP_URL')),
+        'app_title' => env('OPENROUTER_APP_TITLE', env('APP_NAME')),
+    ],
+
+    'qdrant' => [
+        'host' => env('QDRANT_HOST', 'http://qdrant:6333'),
+        'port' => env('QDRANT_PORT', '6333'),
+        'collection' => env('QDRANT_COLLECTION', 'knowledge_base'),
+        'vector_size' => (int) env('EMBEDDING_DIM', 1536),
+    ],
+
 ];

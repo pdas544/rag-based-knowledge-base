@@ -56,6 +56,8 @@ api.interceptors.response.use(
       toast.error('Server error. Please try again later.');
     } else if (!status) {
       toast.error('Network error. Please check your connection.');
+    } else {
+      toast.error(message);
     }
 
     return Promise.reject(error);

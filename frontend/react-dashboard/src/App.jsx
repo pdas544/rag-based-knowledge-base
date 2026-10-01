@@ -3,9 +3,10 @@ import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } from 'react
 import { setLoadingGlobalFn, setUnauthorizedHandlerFn } from './axios';
 import api from './axios'; // Import our axios instance
 import toast from 'react-hot-toast';
-import { MessageSquare, ShieldCheck, FileText, Database } from 'lucide-react';
+import { ShieldCheck, FileText, Database } from 'lucide-react';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Chat from './pages/Chat';
 
 const getStoredAuth = () => {
   const token = localStorage.getItem('token');
@@ -23,25 +24,6 @@ const getStoredAuth = () => {
     return { token: null, user: null };
   }
 };
-
-function UserChat() {
-  return (
-    <div className="flex-1 flex flex-col p-6 max-w-4xl mx-auto w-full">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col">
-        <h2 className="text-xl font-semibold text-slate-800 mb-2 flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-indigo-600" />
-          AI Knowledge Base Chat
-        </h2>
-        <p className="text-sm text-slate-500 mb-6">
-          Read-only access: ask questions directly answered from uploaded company knowledge documents.
-        </p>
-        <div className="flex-1 bg-slate-50 rounded-lg border border-dashed border-slate-200 p-6 flex items-center justify-center text-slate-400">
-          Chat history will appear here...
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function AdminDashboard() {
   return (
@@ -183,12 +165,21 @@ function AppRoutes() {
               </Link>
             </>
           ) : (
+            <>
             <Link
               to="/login"
               className="px-3 py-1.5 rounded-md text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition"
             >
               Login
             </Link>
+            <Link
+              to="/register"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-50 transition"
+            >
+              Register
+              </Link>
+            </>
+            
           )}
         </nav>
       </header>
@@ -207,7 +198,7 @@ function AppRoutes() {
             path="/chat"
             element={(
               <ProtectedRoute auth={auth}>
-                <UserChat />
+                <Chat />
               </ProtectedRoute>
             )}
           />
