@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\AdminDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\QuotaController;
 use Illuminate\Http\Request;
@@ -23,11 +25,17 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware(['throttle:60,1', 'quota']);
     Route::get('/conversations/{conversation}/export', [ConversationController::class, 'export']);
 
-    Route::prefix('documents')->group(function () {
-        Route::get('/', fn () => response()->json(['data' => []])); // TODO 2.2 index
-        Route::post('/', fn () => response()->json(['message' => 'Not implemented'], 501)); // TODO 2.1 store
-    });
+    // Phase 2: RAG documents (staged global KB)
+    Route::apiResource('documents', DocumentController::class)->only(['index', 'store', 'show', 'destroy']);
     Route::get('/quotas', [QuotaController::class, 'show']);
+
+    // Phase 2: admin review gate (role:admin middleware routes/api.php:22 pattern)
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::get('/documents', [AdminDocumentController::class, 'index']);
+        Route::get('/documents/stats', [AdminDocumentController::class, 'stats']);
+        Route::post('/documents/{document}/approve', [AdminDocumentController::class, 'approve']);
+        Route::post('/documents/{document}/reject', [AdminDocumentController::class, 'reject']);
+    });
 
     // Example protected routes for demonstration
     Route::get('/profile', function (Request $request) {

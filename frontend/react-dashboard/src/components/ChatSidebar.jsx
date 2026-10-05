@@ -1,5 +1,6 @@
 import { MessageSquare, Plus } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
+import DocumentUploadZone from './DocumentUploadZone';
 
 import { useEffect } from 'react';
 
@@ -44,6 +45,7 @@ export default function ChatSidebar() {
           </button>
         ))}
       </div>
+      <DocumentUploadZone />
     </aside>
   );
 }

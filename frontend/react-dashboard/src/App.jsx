@@ -26,6 +26,50 @@ const getStoredAuth = () => {
 };
 
 function AdminDashboard() {
+  const [stats, setStats] = useState(null);
+  const [reviews, setReviews] = useState([]);
+
+  const authHeaders = () => ({
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${localStorage.getItem('token')}`,
+  });
+
+  const load = useCallback(async () => {
+    const [s, r] = await Promise.all([
+      fetch('http://localhost:82/api/admin/documents/stats', { headers: authHeaders() }),
+      fetch('http://localhost:82/api/admin/documents?status=awaiting_review', { headers: authHeaders() }),
+    ]);
+    if (s.ok) setStats(await s.json());
+    if (r.ok) setReviews((await r.json()).data ?? []);
+  }, []);
+
+  // Fetch-on-mount: intentional (admin stats + review queue).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+
+  const decide = async (id, action) => {
+    const res = await fetch(`http://localhost:82/api/admin/documents/${id}/${action}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    if (res.ok) {
+      toast.success(`Document ${action}d`);
+      load();
+    } else {
+      toast.error(`Failed to ${action} document`);
+    }
+  };
+
+  const cards = [
+    ['Total Documents', stats?.total_documents ?? '—'],
+    ['Vector Chunks in Qdrant', stats?.vector_chunks ?? '—'],
+    [`Pending Reviews (${stats?.pending_reviews ?? '—'})`, stats?.processing ? `${stats.processing} processing` : 'Idle'],
+  ];
+
   return (
     <div className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
       <div className="flex justify-between items-center">
@@ -35,7 +79,7 @@ function AdminDashboard() {
             Admin Document Management
           </h2>
           <p className="text-sm text-slate-500">
-            Upload, update, or remove knowledge base documents and trigger vector embedding pipelines.
+            Review staged uploads before they join the global knowledge base.
           </p>
         </div>
         <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm flex items-center gap-2 text-sm transition">
@@ -44,18 +88,55 @@ function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-          <div className="text-slate-500 text-xs font-semibold uppercase">Total Documents</div>
-          <div className="text-2xl font-bold text-slate-800 mt-1">0</div>
+        {cards.map(([label, value]) => (
+          <div key={label} className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+            <div className="text-slate-500 text-xs font-semibold uppercase">{label}</div>
+            <div className="text-2xl font-bold text-slate-800 mt-1">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-200 font-semibold text-sm text-slate-700">
+          Awaiting Review ({reviews.length})
         </div>
-        <div className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-          <div className="text-slate-500 text-xs font-semibold uppercase">Vector Chunks in Qdrant</div>
-          <div className="text-2xl font-bold text-slate-800 mt-1">0</div>
-        </div>
-        <div className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-          <div className="text-slate-500 text-xs font-semibold uppercase">Processing Queue</div>
-          <div className="text-2xl font-bold text-slate-800 mt-1">Idle</div>
-        </div>
+        {reviews.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-slate-400 text-center">Nothing awaiting review.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-500 uppercase border-b border-slate-100">
+                <th className="px-4 py-2">File</th>
+                <th className="px-4 py-2">User</th>
+                <th className="px-4 py-2">Chunks</th>
+                <th className="px-4 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reviews.map((d) => (
+                <tr key={d.id} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-2 truncate max-w-xs">{d.filename}</td>
+                  <td className="px-4 py-2 text-slate-500">{d.user?.email ?? `#${d.user_id}`}</td>
+                  <td className="px-4 py-2">{d.chunk_count}</td>
+                  <td className="px-4 py-2 text-right space-x-2">
+                    <button
+                      onClick={() => decide(d.id, 'approve')}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-md"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => decide(d.id, 'reject')}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-md"
+                    >
+                      Reject
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

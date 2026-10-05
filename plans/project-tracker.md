@@ -8,7 +8,7 @@
 |-------|-------|--------|------------|
 | Phase 0 | Scaffold (DB, LLM abstraction, Qdrant, Routes, Frontend shell, Infra) | 🟩 Done | 11/11 |
 | Phase 1 | Core Chat (Streaming, Pagination, Retention, Export, Quotas, UI) | 🟩 Done | 10/10 |
-| Phase 2 | RAG + Moderation (Upload, Parse, Chunk, Embed, Review) | ⬜ Not Started | 0/12 |
+| Phase 2 | RAG + Moderation (Upload, Parse, Chunk, Embed, Review) | 🟩 Done | 12/12 |
 | Phase 3 | Hardening (Search, Badges, Dashboard, Summarization, Tests) | ⬜ Not Started | 0/11 |
 
 ---
@@ -45,18 +45,18 @@
 ## Phase 2 — RAG + Moderation (Day 7-11)
 **Goal:** Documents feed Global KB via staged review.
 
-- [ ] **2.1 Document Upload API** — `DocumentController@store` `POST /api/documents` multipart, `mimes:pdf,docx,jpeg,png,webp,txt,md|max:10240`, sha256 `409` dedup, store `storage/app/documents/{user_id}/{sha256}_*` (`docker-compose.yml:9`)
-- [ ] **2.2 Document List/Detail** — `GET /documents`, `GET /documents/{id}` + chunks, status badge
-- [ ] **2.3 Parse Job** — `ParseChunkEmbedJob` dispatch on upload: `smalot/pdfparser`/`pdftotext` for PDF, `phpoffice/phpword` DOCX, `tesseract-ocr` fallback if chars <100, normalize whitespace
-- [ ] **2.4 Chunk** — 512 tokens overlap 80 recursive splitter (`strlen/4` estimate), store `document_chunks` rows `plans/user-dashboard-rag.md:47`
-- [ ] **2.5 Embed via OpenRouter** — `EmbeddingProvider` `openai/text-embedding-3-small` 1536d via `https://openrouter.ai/api/v1/embeddings`, batch embed
-- [ ] **2.6 Qdrant Upsert** — Upsert points `status=awaiting_review`, payload `{document_id, owner_user_id, chunk_index, text, doc_title, mime}`, update `documents.chunk_count`
-- [ ] **2.7 Dockerfile Deps** — `docker/php/Dockerfile` add `tesseract-ocr`, `poppler-utils`, `libpng-dev`
-- [ ] **2.8 Admin Review API** — `POST /admin/documents/{id}/approve` -> `ready` + payload update, `.../reject` -> `rejected` + `deleteByDocumentId`, role `admin` `routes/api.php:22`
-- [ ] **2.9 Admin Review UI** — Extend `App.jsx:46` `AdminDashboard` cards `Pending Reviews (N)`, table approve/reject, stats `Total Documents`/`Vector Chunks`/`Processing Queue`
-- [ ] **2.10 Retrieval in Chat** — On `POST /messages`, embed query -> Qdrant `search top_k=5 threshold 0.72` filter `status=ready`, augment system prompt `Use following context`, save `sources`
-- [ ] **2.11 Upload UI** — `DocumentUploadZone.jsx` drag-drop, progress, status `pending/processing/awaiting_review/ready`, 10 docs/30d quota badge
-- [ ] **2.12 Queue Config** — `QUEUE_CONNECTION=redis` (`redis:6380`), workers `php artisan queue:work --queue=embed,chat,default`, failed jobs table
+- [x] **2.1 Document Upload API** — `DocumentController@store` `POST /api/documents` multipart, `mimes:pdf,docx,jpeg,png,webp,txt,md|max:10240`, sha256 `409` dedup, store `storage/app/documents/{user_id}/{sha256}_*` (`docker-compose.yml:9`)
+- [x] **2.2 Document List/Detail** — `GET /documents`, `GET /documents/{id}` + chunks, status badge
+- [x] **2.3 Parse Job** — `ParseChunkEmbedJob` dispatch on upload: `smalot/pdfparser`/`pdftotext` for PDF, `phpoffice/phpword` DOCX, `tesseract-ocr` fallback if chars <100, normalize whitespace
+- [x] **2.4 Chunk** — 512 tokens overlap 80 recursive splitter (`strlen/4` estimate), store `document_chunks` rows `plans/user-dashboard-rag.md:47`
+- [x] **2.5 Embed via OpenRouter** — `EmbeddingProvider` `nvidia/nemotron-3-embed-1b:free` 2048d via `https://openrouter.ai/api/v1/embeddings`, batch embed
+- [x] **2.6 Qdrant Upsert** — Upsert points `status=awaiting_review`, payload `{document_id, owner_user_id, chunk_index, text, doc_title, mime}`, update `documents.chunk_count`
+- [x] **2.7 Dockerfile Deps** — `docker/php/Dockerfile` add `tesseract-ocr`, `poppler-utils`, `phpredis` (queue needs ext), rebuilt image verified
+- [x] **2.8 Admin Review API** — `POST /admin/documents/{id}/approve` -> `ready` + payload update, `.../reject` -> `rejected` + `deleteByDocumentId`, role `admin` `routes/api.php:22`
+- [x] **2.9 Admin Review UI** — Extend `App.jsx:46` `AdminDashboard` cards `Pending Reviews (N)`, table approve/reject, stats `Total Documents`/`Vector Chunks`/`Processing Queue`
+- [x] **2.10 Retrieval in Chat** — On `POST /messages`, embed query -> Qdrant `search top_k=5 threshold 0.72` filter `status=ready`, augment system prompt `Use following context`, save `sources`
+- [x] **2.11 Upload UI** — `DocumentUploadZone.jsx` drag-drop, progress, status `pending/processing/awaiting_review/ready`, 10 docs/30d quota badge
+- [x] **2.12 Queue Config** — `QUEUE_CONNECTION=redis` (`redis:6380`), workers `php artisan queue:work --queue=embed,chat,default`, failed jobs table
 
 ## Phase 3 — Hardening (Day 12-14)
 **Goal:** Polish, observability, tests.

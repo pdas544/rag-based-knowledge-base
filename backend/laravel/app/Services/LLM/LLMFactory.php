@@ -10,7 +10,8 @@ class LLMFactory
 
         return match ($driver) {
             // Future: 'ollama' => app(OllamaProvider::class),
-            default => app(OpenRouterProvider::class),
+            // Resolved via interface so tests can swap fakes.
+            default => app(LLMProviderInterface::class),
         };
     }
 
@@ -19,7 +20,7 @@ class LLMFactory
         $driver = config('services.llm.driver', 'openrouter');
 
         return match ($driver) {
-            default => app(OpenRouterProvider::class),
+            default => app(EmbeddingProviderInterface::class),
         };
     }
 }

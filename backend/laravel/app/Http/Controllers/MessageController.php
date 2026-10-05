@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\UserQuota;
 use App\Services\LLM\LLMFactory;
+use App\Services\Qdrant\QdrantService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -67,6 +68,35 @@ class MessageController extends Controller
         $history = $conversation->messages()->orderByDesc('id')->limit(10)->get()->reverse()->values()
             ->map(fn ($m) => ['role' => $m->role, 'content' => $m->content])->all();
 
+        // 2.10 Retrieval: embed query -> Qdrant top_k=5 threshold 0.72 (ready only).
+        // Skipped when no API key (stub mode) or on any retrieval failure.
+        $sources = [];
+        if (config('services.llm.openrouter_api_key', '') !== '') {
+            try {
+                $queryVector = LLMFactory::embeddings()->embed($content);
+                if ($queryVector !== []) {
+                    $hits = app(QdrantService::class)->search($queryVector, 5, 0.72);
+                    if ($hits !== []) {
+                        $context = 'Use following context to answer the question. Cite sources like [doc].'."\n"
+                            .collect($hits)->map(fn ($h) => sprintf(
+                                '[%s ch%s]: %s',
+                                $h['payload']['doc_title'] ?? 'doc',
+                                $h['payload']['chunk_index'] ?? '?',
+                                mb_substr((string) ($h['payload']['text'] ?? ''), 0, 1500)
+                            ))->implode("\n---\n");
+                        array_unshift($history, ['role' => 'system', 'content' => $context]);
+                        $sources = collect($hits)->map(fn ($h) => [
+                            'point_id' => $h['point_id'],
+                            'doc_id' => $h['payload']['document_id'] ?? null,
+                            'score' => $h['score'],
+                        ])->all();
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('RAG retrieval skipped', ['error' => $e->getMessage()]);
+            }
+        }
+
         if ($conversation->summary) {
             array_unshift($history, ['role' => 'system', 'content' => 'SYSTEM SUMMARY: '.$conversation->summary]);
         }
@@ -75,14 +105,14 @@ class MessageController extends Controller
         $started = microtime(true);
         $full = '';
 
-        $stream = function () use ($history, $model, $conversation, $user, $userMessage, $content, $started, &$full) {
+        $stream = function () use ($history, $model, $conversation, $user, $userMessage, $content, $started, $sources, &$full) {
             $assistantMessage = Message::create([
                 'conversation_id' => $conversation->id,
                 'user_id' => $user->id,
                 'role' => 'assistant',
                 'content' => '',
                 'model' => $model,
-                'sources' => [],
+                'sources' => $sources,
             ]);
 
             try {
@@ -129,9 +159,10 @@ class MessageController extends Controller
                 'tokens' => $tokens,
                 'latency_ms' => $latency,
                 'conversation_id' => $conversation->id,
+                'sources' => count($sources),
             ]);
 
-            echo 'data: '.json_encode(['done' => true, 'sources' => [], 'conversation' => $conversation->fresh()])."\n\n";
+            echo 'data: '.json_encode(['done' => true, 'sources' => $sources, 'conversation' => $conversation->fresh()])."\n\n";
             if (ob_get_level() > 0) {
                 ob_flush();
             }
