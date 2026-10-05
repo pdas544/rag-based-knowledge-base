@@ -9,6 +9,17 @@ export const useChat = () => {
   return ctx;
 };
 
+// API list shapes vary (Laravel paginator {data:[]}, bare array, error
+// objects). Normalize to an array so .map() can never throw in render.
+export const toList = (json) => {
+  if (Array.isArray(json)) return json;
+  if (Array.isArray(json?.data)) return json.data;
+  if (Array.isArray(json?.conversations)) return json.conversations;
+  if (Array.isArray(json?.messages)) return json.messages;
+
+  return [];
+};
+
 // Phase 1: REST list + cursor messages + SSE streaming state.
 export const ChatProvider = ({ children }) => {
   const [conversations, setConversations] = useState([]);
@@ -24,8 +35,7 @@ export const ChatProvider = ({ children }) => {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return;
-    const json = await res.json();
-    const list = json.data ?? json ?? [];
+    const list = toList(await res.json());
     setConversations(list);
     if (!activeId && list.length > 0) setActiveId(list[0].id);
   }, [activeId]);
@@ -40,7 +50,8 @@ export const ChatProvider = ({ children }) => {
     if (!res.ok) return null;
     const json = await res.json();
     const convo = json.conversation;
-    setConversations((prev) => [convo, ...prev]);
+    if (!convo?.id) return null;
+    setConversations((prev) => [convo, ...(Array.isArray(prev) ? prev : [])]);
     setActiveId(convo.id);
     setMessages([]);
 
@@ -55,8 +66,7 @@ export const ChatProvider = ({ children }) => {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return;
-    const json = await res.json();
-    setMessages(json.data ?? []);
+    setMessages(toList(await res.json()));
   }, []);
 
   const refreshQuota = useCallback(async () => {

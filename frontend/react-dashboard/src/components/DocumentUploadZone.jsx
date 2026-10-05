@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileUp, Upload } from 'lucide-react';
+import { toList } from '../context/ChatContext';
 
 const API = 'http://localhost:82/api';
 const TERMINAL = ['ready', 'rejected', 'failed'];
@@ -29,8 +30,7 @@ export default function DocumentUploadZone() {
   const refresh = useCallback(async () => {
     const res = await fetch(`${API}/documents`, { headers: { Accept: 'application/json', ...auth() } });
     if (!res.ok) return;
-    const json = await res.json();
-    setDocs(json.data ?? []);
+    setDocs(toList(await res.json()));
   }, [auth]);
 
   // Fetch-on-mount: intentional (own documents list).

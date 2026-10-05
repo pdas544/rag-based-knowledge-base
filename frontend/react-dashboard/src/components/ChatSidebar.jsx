@@ -7,6 +7,8 @@ import { useEffect } from 'react';
 // Phase 1: list + create + quota badge (search/rename lands in Phase 3).
 export default function ChatSidebar() {
   const { conversations, activeId, selectConversation, refreshConversations, createConversation, quota, refreshQuota } = useChat();
+  // Last line of defense: never let a non-array state blank the page.
+  const list = Array.isArray(conversations) ? conversations : [];
 
   useEffect(() => {
     refreshConversations();
@@ -29,10 +31,10 @@ export default function ChatSidebar() {
         )}
       </div>
       <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
-        {conversations.length === 0 && (
+        {list.length === 0 && (
           <p className="text-xs text-slate-400 px-2 py-4 text-center">No conversations yet</p>
         )}
-        {conversations.map((c) => (
+        {list.map((c) => (
           <button
             key={c.id}
             onClick={() => selectConversation(c.id)}

@@ -16,7 +16,9 @@ Loaded alongside this file via `opencode.json`: `agent-optimal-usage.md`
   (single test), `docker compose exec app vendor/bin/pint <touched-files>` —
   scope pint to files you changed; pre-existing style issues elsewhere are out of scope.
 - Frontend: `docker compose exec frontend npm run lint` (axios is REST-only;
-  SSE streaming uses native `fetch` + ReadableStream, see `src/components/ChatInput.jsx`).
+  SSE streaming uses native `fetch` + ReadableStream, see `src/components/ChatInput.jsx`),
+  `docker compose exec frontend npm run test` (vitest + jsdom; explicit
+  `afterEach(cleanup)` — no globals mode, so RTL can't auto-cleanup).
 - Migrations: `docker compose exec app php artisan migrate`; verify with
   `php artisan route:list --path=api/...`.
 - Queue is `redis`: uploads stall in `pending` unless a worker runs —
