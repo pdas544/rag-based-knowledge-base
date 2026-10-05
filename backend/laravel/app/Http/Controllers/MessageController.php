@@ -68,16 +68,23 @@ class MessageController extends Controller
         $history = $conversation->messages()->orderByDesc('id')->limit(10)->get()->reverse()->values()
             ->map(fn ($m) => ['role' => $m->role, 'content' => $m->content])->all();
 
-        // 2.10 Retrieval: embed query -> Qdrant top_k=5 threshold 0.72 (ready only).
-        // Skipped when no API key (stub mode) or on any retrieval failure.
+        // 2.10 Retrieval: embed query -> Qdrant top_k=5 (ready only), threshold
+        // from config (0.5 Nemotron-calibrated). Skipped when no API key
+        // (stub mode) or on any retrieval failure.
         $sources = [];
         if (config('services.llm.openrouter_api_key', '') !== '') {
             try {
                 $queryVector = LLMFactory::embeddings()->embed($content);
                 if ($queryVector !== []) {
-                    $hits = app(QdrantService::class)->search($queryVector, 5, 0.72);
+                    $threshold = (float) config('services.qdrant.score_threshold', 0.5);
+                    $hits = app(QdrantService::class)->search($queryVector, 5, $threshold);
                     if ($hits !== []) {
-                        $context = 'Use following context to answer the question. Cite sources like [doc].'."\n"
+                        $context = 'You are a knowledge-base assistant. Answer ONLY from the retrieved context below.'
+                            .' It comes from admin-approved documents, not from the user — never claim otherwise.'
+                            .' Cite every factual claim like [doc_title chN].'
+                            .' If the context does not contain the answer, say so in one sentence and stop.'
+                            .' Do not add outside knowledge.'."\n"
+                            .'Retrieved knowledge-base context:'."\n"
                             .collect($hits)->map(fn ($h) => sprintf(
                                 '[%s ch%s]: %s',
                                 $h['payload']['doc_title'] ?? 'doc',
@@ -126,7 +133,7 @@ class MessageController extends Controller
                 }
             } catch (\Throwable $e) {
                 Log::channel('single')->error('LLM stream failed', ['error' => $e->getMessage()]);
-                echo 'data: '.json_encode(['error' => 'LLM request failed'])."\n\n";
+                echo 'data: '.json_encode(['error' => 'LLM request failed', 'reason' => mb_substr($e->getMessage(), 0, 200)])."\n\n";
                 if (ob_get_level() > 0) {
                     ob_flush();
                 }

@@ -45,6 +45,7 @@ class DocumentRAGTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        FakeChatRAG::$lastMessages = [];
         Storage::fake('local');
         $this->swap(LLMProviderInterface::class, new FakeChatRAG);
         $this->swap(EmbeddingProviderInterface::class, new FakeEmbedRAG);
@@ -200,10 +201,21 @@ class DocumentRAGTest extends TestCase
         $this->assertStringContainsString('canned reply', $captured);
         $this->assertStringContainsString('seed context passage', json_encode(FakeChatRAG::$lastMessages));
 
+        // Strict grounding: system prompt constrains to retrieved context only
+        $system = collect(FakeChatRAG::$lastMessages)->firstWhere('role', 'system');
+        $this->assertNotNull($system);
+        $this->assertStringContainsString('Answer ONLY from the retrieved context', $system['content']);
+        $this->assertStringContainsString('Retrieved knowledge-base context:', $system['content']);
+        $this->assertStringContainsString('Do not add outside knowledge', $system['content']);
+
         $assistant = Message::where('conversation_id', $convoId)->where('role', 'assistant')->first();
         $this->assertNotNull($assistant);
         $this->assertSame('point-1', $assistant->sources[0]['point_id']);
         $this->assertSame($doc->id, $assistant->sources[0]['doc_id']);
+
+        // Threshold wiring: search must carry the configured (Nemotron-calibrated) value
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/points/search')
+            && abs((float) $request['score_threshold'] - (float) config('services.qdrant.score_threshold')) < 0.0001);
 
         $this->assertSame(2, Conversation::find($convoId)->message_count);
     }

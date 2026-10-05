@@ -19,9 +19,10 @@ class AppServiceProvider extends ServiceProvider
             apiKey: config('services.llm.openrouter_api_key', ''),
             baseUrl: config('services.llm.openrouter_base_url', 'https://openrouter.ai/api/v1'),
             chatModel: config('services.llm.chat_model', 'openai/gpt-4o-mini'),
-            embeddingModel: config('services.llm.embedding_model', 'openai/text-embedding-3-small'),
+            embeddingModel: config('services.llm.embedding_model', 'nvidia/nemotron-3-embed-1b:free'),
             appUrl: config('app.url'),
             appTitle: config('app.name'),
+            temperature: (float) config('services.llm.temperature', 0.2),
         ));
 
         $this->app->bind(LLMProviderInterface::class, OpenRouterProvider::class);
@@ -35,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
             return new QdrantService(
                 host: $host,
                 collection: config('services.qdrant.collection', 'knowledge_base'),
-                vectorSize: (int) config('services.qdrant.vector_size', 1536),
+                vectorSize: (int) config('services.qdrant.vector_size', 2048),
             );
         });
     }

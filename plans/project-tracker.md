@@ -54,7 +54,7 @@
 - [x] **2.7 Dockerfile Deps** — `docker/php/Dockerfile` add `tesseract-ocr`, `poppler-utils`, `phpredis` (queue needs ext), rebuilt image verified
 - [x] **2.8 Admin Review API** — `POST /admin/documents/{id}/approve` -> `ready` + payload update, `.../reject` -> `rejected` + `deleteByDocumentId`, role `admin` `routes/api.php:22`
 - [x] **2.9 Admin Review UI** — Extend `App.jsx:46` `AdminDashboard` cards `Pending Reviews (N)`, table approve/reject, stats `Total Documents`/`Vector Chunks`/`Processing Queue`
-- [x] **2.10 Retrieval in Chat** — On `POST /messages`, embed query -> Qdrant `search top_k=5 threshold 0.72` filter `status=ready`, augment system prompt `Use following context`, save `sources`
+- [x] **2.10 Retrieval in Chat** — On `POST /messages`, embed query -> Qdrant `search top_k=5 threshold 0.5` (`QDRANT_SCORE_THRESHOLD`) filter `status=ready`, augment system prompt `Use following context`, save `sources`
 - [x] **2.11 Upload UI** — `DocumentUploadZone.jsx` drag-drop, progress, status `pending/processing/awaiting_review/ready`, 10 docs/30d quota badge
 - [x] **2.12 Queue Config** — `QUEUE_CONNECTION=redis` (`redis:6380`), workers `php artisan queue:work --queue=embed,chat,default`, failed jobs table
 

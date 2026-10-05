@@ -47,7 +47,7 @@ user_quotas: id BIGINT PK, user_id FK, date DATE, prompt_count INT default 0, to
 3. **Chunk** 512 tokens overlap 80, recursive character splitter (tiktoken PHP port estimate `strlen/4`). Store `document_chunks` rows.
 4. **Embed** via `EmbeddingProvider` through OpenRouter (model `nvidia/nemotron-3-embed-1b:free` 2048d, configurable via `OPENROUTER_EMBEDDING_MODEL`) -> upsert Qdrant points with `status=awaiting_review`, update `documents.chunk_count`, set `awaiting_review`.
 5. **Review** Admin `POST /api/admin/documents/{id}/approve` -> set `ready`, update Qdrant payload `status=ready`; `.../reject` -> `rejected` + delete points.
-6. **Chat** `POST /api/conversations/{id}/messages` {content} -> validate + quota -> embed query -> Qdrant search `top_k=5, score_threshold=0.72` filtered `status=ready` -> augment system prompt `Use following context:\n{citations}` -> `LLMProvider::streamChat()` -> stream SSE, save `messages` with `sources=[{point_id, doc_id, score}]`, update `conversations.total_tokens/message_count/last_message_at`, auto-title on first assistant reply via small LLM call fallback `substr(first prompt,0,40)`.
+6. **Chat** `POST /api/conversations/{id}/messages` {content} -> validate + quota -> embed query -> Qdrant search `top_k=5, score_threshold=0.5` (`QDRANT_SCORE_THRESHOLD`, Nemotron-calibrated) filtered `status=ready` -> augment system prompt `Use following context:\n{citations}` -> `LLMProvider::streamChat()` -> stream SSE, save `messages` with `sources=[{point_id, doc_id, score}]`, update `conversations.total_tokens/message_count/last_message_at`, auto-title on first assistant reply via small LLM call fallback `substr(first prompt,0,40)`.
 7. **Summarization** when `message_count>10`: keep last 10 messages + `summary` TEXT compressed via LLM, injected as `SYSTEM SUMMARY`.
 
 ## 4. LLM Abstraction (OpenRouter-first, Hybrid-ready)
@@ -124,7 +124,7 @@ GET    /api/quotas                             -> {doc_uploads_used, prompts_use
 ## 10. Delivery Phases (Compressed 2 weeks for Prototype)
 - **Phase 0 (Day 1-2) Scaffold:** migrations, models `Conversation/Message/Document/DocumentChunk/UserQuota`, policies, `LLMProviderInterface` + `OpenRouterProvider` stub (Guzzle with `https://openrouter.ai/api/v1` + headers `HTTP-Referer`/`X-Title`), `QdrantService` (Guzzle `http://qdrant:6333`), routes skeleton, frontend shell `Chat.jsx` + `ChatSidebar`.
 - **Phase 1 (Day 3-6) Core Chat:** streaming `POST /messages` SSE, pagination `GET /messages?cursor`, 90d prune command, JSON export, Redis throttle/quotas, `ChatMessage` markdown. Verify `php artisan test --filter=ConversationTest`.
-- **Phase 2 (Day 7-11) RAG + Moderation:** `DocumentController@store` + `ParseChunkEmbedJob` (PDF/DOCX/image OCR), Qdrant upsert `awaiting_review`, admin approve/reject UI, retrieval `top_k=5 threshold 0.72` injected into prompt with citations.
+- **Phase 2 (Day 7-11) RAG + Moderation:** `DocumentController@store` + `ParseChunkEmbedJob` (PDF/DOCX/image OCR), Qdrant upsert `awaiting_review`, admin approve/reject UI, retrieval `top_k=5 threshold 0.5` injected into prompt with citations.
 - **Phase 3 (Day 12-14) Hardening:** search conversations, quota badges, token usage dashboard, summarization job, `react-virtuoso` virtualization, tests `ConversationRAGTest`, lint `vendor/bin/pint` + `npm run lint`, `k6` 10->25->50 concurrent test.
 
 ## 11. Tests & Verification

@@ -66,6 +66,12 @@ class QdrantService
             'with_payload' => true,
         ]);
 
+        // Missing collection (fresh install / wiped volume) means "no context",
+        // not a chat-breaking error.
+        if ($response->status() === 404) {
+            return [];
+        }
+
         $response->throw();
 
         return collect($response->json('result', []))

@@ -11,9 +11,10 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
         private string $apiKey,
         private string $baseUrl = 'https://openrouter.ai/api/v1',
         private string $chatModel = 'openai/gpt-4o-mini',
-        private string $embeddingModel = 'openai/text-embedding-3-small',
+        private string $embeddingModel = 'nvidia/nemotron-3-embed-1b:free',
         private ?string $appUrl = null,
         private ?string $appTitle = null,
+        private float $temperature = 0.2,
     ) {}
 
     public function streamChat(array $messages, array $context = []): \Generator
@@ -27,10 +28,10 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
             return;
         }
 
-        $client = new Client(['timeout' => 120, 'stream' => true]);
+        $client = $this->newHttpClient();
         $response = $client->post("{$this->baseUrl}/chat/completions", [
             'headers' => $this->headers(),
-            'json' => ['model' => $model, 'messages' => $messages, 'stream' => true],
+            'json' => ['model' => $model, 'messages' => $messages, 'stream' => true, 'temperature' => $this->temperature],
         ]);
 
         $body = $response->getBody();
@@ -49,6 +50,14 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
                     return;
                 }
                 $json = json_decode($payload, true);
+                // OpenRouter can deliver provider errors (e.g. free-tier
+                // rate limits) as 200 SSE chunks — surface, don't swallow.
+                if (isset($json['error'])) {
+                    $message = is_array($json['error'])
+                        ? ($json['error']['message'] ?? json_encode($json['error']))
+                        : (string) $json['error'];
+                    throw new \RuntimeException("OpenRouter: {$message}");
+                }
                 $delta = (string) data_get($json, 'choices.0.delta.content', '');
                 if ($delta !== '') {
                     yield $delta;
@@ -80,6 +89,11 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
             ->map(fn ($item) => $item['embedding'] ?? [])
             ->values()
             ->all();
+    }
+
+    protected function newHttpClient(): Client
+    {
+        return new Client(['timeout' => 120, 'stream' => true]);
     }
 
     /** @return array<string, string> */
