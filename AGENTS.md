@@ -39,6 +39,9 @@ Loaded alongside this file via `opencode.json`: `agent-optimal-usage.md`
 - `phpunit.xml` pins `OPENROUTER_API_KEY` empty so tests always take the LLM stub —
   never rely on a developer's live key in tests (swap fakes + `Http::fake()` instead,
   see `DocumentRAGTest.php`).
+- Tests run as root, php-fpm runs as www-data: new writable files (log channels,
+  storage paths) pass tests but fail live with `Permission denied` — pre-create
+  with group/world write and keep logging fail-open (`ignore_exceptions` stack).
 
 ## Repo conventions (easy to miss)
 

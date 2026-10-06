@@ -253,6 +253,12 @@ class MessageController extends Controller
      * nothing (acronyms, names, existence questions). Cross-DB safe: plain
      * LIKE, no FULLTEXT (see AGENTS.md test-env notes).
      *
+     * Candidates are RANKED, not position-ordered: each chunk scores by
+     * distinct-term coverage weighted with inverse chunk-frequency, so a
+     * rare term (dsa: 2 chunks) outranks a ubiquitous one (students: 30).
+     * Candidate cap 200 fits prototype volumes; a BM25/FULLTEXT index is
+     * the scaled replacement.
+     *
      * @return array<int, array{point_id: string, score: null, payload: array}>
      */
     private function keywordFallback(string $query): array
@@ -276,23 +282,51 @@ class MessageController extends Controller
             return [];
         }
 
-        $chunks = DocumentChunk::whereHas('document', fn ($q) => $q->where('status', 'ready'))
+        $candidates = DocumentChunk::whereHas('document', fn ($q) => $q->where('status', 'ready'))
             ->where(function ($q) use ($terms) {
                 foreach ($terms as $t) {
                     $q->orWhere('content', 'LIKE', "%{$t}%");
                 }
             })
             ->orderBy('document_id')->orderBy('chunk_index')
-            ->limit(3)->with('document:id,filename')->get();
+            ->limit(200)->with('document:id,filename')->get();
+        if ($candidates->isEmpty()) {
+            return [];
+        }
 
-        return $chunks->map(fn ($c) => [
-            'point_id' => $c->qdrant_point_id ?? "db-{$c->id}",
+        $freq = array_fill_keys($terms, 0);
+        $lowered = [];
+        foreach ($candidates as $c) {
+            $text = mb_strtolower($c->content);
+            $lowered[$c->id] = $text;
+            foreach ($terms as $t) {
+                if (str_contains($text, $t)) {
+                    $freq[$t]++;
+                }
+            }
+        }
+
+        $ranked = $candidates->map(function ($c) use ($terms, $freq, $lowered) {
+            $matched = array_filter($terms, fn ($t) => str_contains($lowered[$c->id], $t));
+            $score = 0.0;
+            foreach ($matched as $t) {
+                $score += 1.0 / (1 + log(1 + $freq[$t]));
+            }
+
+            return ['chunk' => $c, 'score' => $score, 'coverage' => count($matched)];
+        })->sort(function ($a, $b) {
+            return [$b['score'], $b['coverage'], $a['chunk']->document_id, $a['chunk']->chunk_index]
+                <=> [$a['score'], $a['coverage'], $b['chunk']->document_id, $b['chunk']->chunk_index];
+        })->take(3)->sortBy([['chunk.document_id', 'asc'], ['chunk.chunk_index', 'asc']])->values();
+
+        return $ranked->map(fn ($r) => [
+            'point_id' => $r['chunk']->qdrant_point_id ?? "db-{$r['chunk']->id}",
             'score' => null,
             'payload' => [
-                'document_id' => $c->document_id,
-                'doc_title' => $c->document->filename ?? 'doc',
-                'chunk_index' => $c->chunk_index,
-                'text' => $c->content,
+                'document_id' => $r['chunk']->document_id,
+                'doc_title' => $r['chunk']->document->filename ?? 'doc',
+                'chunk_index' => $r['chunk']->chunk_index,
+                'text' => $r['chunk']->content,
             ],
         ])->all();
     }

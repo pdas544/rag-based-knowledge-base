@@ -262,13 +262,24 @@ class DocumentRAGTest extends TestCase
         $doc = Document::create([
             'user_id' => $user->id, 'filename' => 'policy.txt', 'mime' => 'text/plain',
             'size_bytes' => 10, 'sha256' => hash('sha256', 'kw'), 'path' => 'documents/kw.txt',
-            'status' => 'ready', 'chunk_count' => 1,
+            'status' => 'ready', 'chunk_count' => 5,
         ]);
-        DocumentChunk::create([
-            'document_id' => $doc->id, 'chunk_index' => 0,
-            'content' => 'Any previously availed funding from NIFT such as DSA shall be recovered.',
-            'tokens' => 20, 'qdrant_point_id' => null, 'created_at' => now()->toDateTimeString(),
-        ]);
+        // Generic early chunks mention only the ubiquitous term; the rare
+        // acronym lives late — position-ordered selection would miss it.
+        $texts = [
+            'The students attend workshops on campus life.',
+            ' hostel facilities are available for all the students nearby.',
+            'Students will contribute in the areas of process innovation.',
+            'The budget amount per student is fixed for each activity.',
+            'Any previously availed funding from NIFT such as DSA shall be recovered.',
+        ];
+        foreach ($texts as $i => $text) {
+            DocumentChunk::create([
+                'document_id' => $doc->id, 'chunk_index' => $i,
+                'content' => $text, 'tokens' => 20,
+                'qdrant_point_id' => null, 'created_at' => now()->toDateTimeString(),
+            ]);
+        }
 
         // Vector search finds nothing (acronym scores low) — fallback must kick in
         Http::fake([
@@ -277,7 +288,7 @@ class DocumentRAGTest extends TestCase
 
         $convoId = $this->postJson('/api/conversations', [], $h)->assertCreated()->json('conversation.id');
 
-        $stream = $this->postJson("/api/conversations/{$convoId}/messages", ['content' => 'Is there any information regarding DSA'], $h);
+        $stream = $this->postJson("/api/conversations/{$convoId}/messages", ['content' => 'what is the amount of DSA for the students'], $h);
         $stream->assertOk();
 
         $captured = '';
@@ -289,7 +300,7 @@ class DocumentRAGTest extends TestCase
         $stream->baseResponse->sendContent();
         ob_end_clean();
 
-        // LLM ran (no refusal) with the keyword-matched chunk as context
+        // LLM ran (no refusal) with the rare-term chunk ranked into context
         $this->assertStringContainsString('canned reply', $captured);
         $this->assertStringNotContainsString(MessageController::NO_CONTEXT_MESSAGE, $captured);
         $this->assertStringContainsString('funding from NIFT such as DSA', json_encode(FakeChatRAG::$lastMessages));

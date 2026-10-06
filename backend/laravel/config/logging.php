@@ -132,9 +132,16 @@ return [
         ],
 
         // Per-LLM-call observability: model, tokens, latency, sources
-        // (plans/user-dashboard-rag.md: observability). Fail-open: never
-        // throws when the log directory is not writable.
+        // (plans/user-dashboard-rag.md: observability). Stack with
+        // ignore_exceptions so logging NEVER breaks a chat response, even
+        // when the file is not writable by the php-fpm user.
         'llm' => [
+            'driver' => 'stack',
+            'channels' => ['llm_file'],
+            'ignore_exceptions' => true,
+        ],
+
+        'llm_file' => [
             'driver' => 'single',
             'path' => storage_path('logs/llm.log'),
             'level' => env('LOG_LEVEL', 'debug'),
