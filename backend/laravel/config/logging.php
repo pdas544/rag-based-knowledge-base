@@ -131,6 +131,16 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        // Per-LLM-call observability: model, tokens, latency, sources
+        // (plans/user-dashboard-rag.md: observability). Fail-open: never
+        // throws when the log directory is not writable.
+        'llm' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/llm.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],

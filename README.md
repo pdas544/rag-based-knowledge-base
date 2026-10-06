@@ -57,6 +57,9 @@ After changing `docker/php/Dockerfile`: `docker compose up -d --build app`.
 
 **As a user (`/chat`):**
 1. **Chat** — new conversation, streaming replies, history in the sidebar.
+   Questions with no KB match (vector search, then keyword fallback for
+   acronyms/names) get a fixed `Not found in the available knowledge base.`
+   reply (no LLM call, no drift).
    Export a conversation: `GET /api/conversations/{id}/export` (JSON).
 2. **Upload documents** — drag PDF/DOCX/image/TXT/MD (≤10MB) into the
    "Knowledge docs" zone in the sidebar. Status flows

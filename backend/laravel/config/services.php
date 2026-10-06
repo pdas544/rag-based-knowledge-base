@@ -47,6 +47,13 @@ return [
         'temperature' => (float) env('LLM_TEMPERATURE', 0.2),
     ],
 
+    'moderation' => [
+        // Optional LLM judge (any OpenRouter chat model). Empty = blocklist only.
+        'model' => env('MODERATION_MODEL', ''),
+        // Comma-separated extra PCRE bodies, e.g. "foo,bar\d+"
+        'extra_patterns' => env('MODERATION_PATTERNS', ''),
+    ],
+
     'qdrant' => [
         'host' => env('QDRANT_HOST', 'http://qdrant:6333'),
         'port' => env('QDRANT_PORT', '6333'),

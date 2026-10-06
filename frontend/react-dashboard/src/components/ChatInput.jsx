@@ -2,61 +2,15 @@ import { useRef, useState } from 'react';
 import { useChat } from '../context/ChatContext';
 
 export default function ChatInput() {
-  const { activeId, streaming, setStreaming, setMessages } = useChat();
+  const { activeId, streaming, sendMessage, stopStreaming } = useChat();
   const [value, setValue] = useState('');
   const ref = useRef(null);
 
-  const send = async () => {
+  const send = () => {
     const text = value.trim();
     if (!text || streaming || !activeId) return;
     setValue('');
-    setStreaming(true);
-    setMessages((prev) => [...prev, { role: 'user', content: text }]);
-
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:82/api/conversations/${activeId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content: text }),
-      });
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let assistant = '';
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
-
-      for (;;) {
-        const { done, value: chunk } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(chunk, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() || '';
-        for (const part of parts) {
-          const line = part.trim();
-          if (!line.startsWith('data:')) continue;
-          const payload = JSON.parse(line.slice(5));
-          if (payload.delta) {
-            assistant += payload.delta;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = { role: 'assistant', content: assistant };
-              return next;
-            });
-          }
-        }
-      }
-    } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Request failed. Retry.' }]);
-    } finally {
-      setStreaming(false);
-    }
+    sendMessage(text);
   };
 
   return (
@@ -76,13 +30,23 @@ export default function ChatInput() {
         rows={2}
         className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm resize-y"
       />
-      <button
-        onClick={send}
-        disabled={streaming || !value.trim() || !activeId}
-        className="px-4 py-2 bg-indigo-600 disabled:bg-slate-200 text-white disabled:text-slate-500 text-sm rounded-lg"
-      >
-        {streaming ? '...' : 'Send'}
-      </button>
+      {streaming ? (
+        <button
+          onClick={stopStreaming}
+          title="Stop response"
+          className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-sm rounded-lg flex items-center gap-2"
+        >
+          <span className="inline-block w-3 h-3 bg-white rounded-[2px]" /> Stop
+        </button>
+      ) : (
+        <button
+          onClick={send}
+          disabled={!value.trim() || !activeId}
+          className="px-4 py-2 bg-indigo-600 disabled:bg-slate-200 text-white disabled:text-slate-500 text-sm rounded-lg"
+        >
+          Send
+        </button>
+      )}
     </div>
   );
 }

@@ -74,6 +74,18 @@ services:
     volumes: [qdrant_data:/qdrant/storage]
     networks: [kb]
 
+  # 3.8 Local-LLM stub for the future hybrid (OpenRouter -> Ollama) path.
+  # Disabled by default (profile); enable with:
+  #   docker compose --profile ollama up -d ollama
+  # then use the OllamaProvider driver + ReEmbedDocumentsJob for the dim change.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kb-ollama
+    profiles: ["ollama"]
+    ports: ["11434:11434"]
+    volumes: [ollama_data:/root/.ollama]
+    networks: [kb]
+
 networks:
   kb:
     driver: bridge
@@ -82,4 +94,5 @@ volumes:
   mysql_data:
   redis_data:
   qdrant_data:
+  ollama_data:
   frontend_node_modules:

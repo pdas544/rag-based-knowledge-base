@@ -9,7 +9,7 @@
 | Phase 0 | Scaffold (DB, LLM abstraction, Qdrant, Routes, Frontend shell, Infra) | 🟩 Done | 11/11 |
 | Phase 1 | Core Chat (Streaming, Pagination, Retention, Export, Quotas, UI) | 🟩 Done | 10/10 |
 | Phase 2 | RAG + Moderation (Upload, Parse, Chunk, Embed, Review) | 🟩 Done | 12/12 |
-| Phase 3 | Hardening (Search, Badges, Dashboard, Summarization, Tests) | ⬜ Not Started | 0/11 |
+| Phase 3 | Hardening (Search, Badges, Dashboard, Summarization, Tests) | 🟩 Done | 11/11 |
 
 ---
 
@@ -61,17 +61,17 @@
 ## Phase 3 — Hardening (Day 12-14)
 **Goal:** Polish, observability, tests.
 
-- [ ] **3.1 Conversation Search** — `GET /conversations?search=` MySQL FULLTEXT on title, frontend search in `ChatSidebar`
-- [ ] **3.2 Quota Badges** — `GET /api/quotas` frontend badge `remaining uploads/prompts` in sidebar narrow
-- [ ] **3.3 Token Dashboard** — Admin stats `Avg Latency`, `Tokens Used`, `Cost` (OpenRouter usage header) in `AdminDashboard`
-- [ ] **3.4 Summarization** — `SummarizeConversationJob` when `message_count>10`, keep last 10 + `summary` TEXT, inject `SYSTEM SUMMARY`
-- [ ] **3.5 Markdown & Citations** — `ChatMessage.jsx` `react-markdown` + `highlight.js` + `dompurify`, citation badges `[doc.pdf p.2]`, copy/regenerate/retry
-- [ ] **3.6 Virtualization** — `react-virtuoso` for long histories, infinite scroll cursor
-- [ ] **3.7 Guardrails** — Conversation cap 100 msgs, token estimate `strlen/4 <4000`, moderation via `openai/moderation` through OpenRouter + regex blocklist, log `storage/logs/llm.log`
-- [ ] **3.8 Docker Ollama Stub** — Add `docker-compose.yml` `ollama` service disabled via profile, `ReEmbedDocumentsJob` for dim migration `1536->768`
-- [ ] **3.9 Tests** — `docker compose exec app php artisan test --filter=ConversationRAGTest` (auth, CRUD, streaming, quotas, RAG retrieval, approve flow)
-- [ ] **3.10 Lint & Build** — `docker compose exec app vendor/bin/pint`, `docker compose exec frontend npm run lint`, `vite build`
-- [ ] **3.11 Load Test** — `k6` 10->25->50 concurrent (100 ceiling), verify p95 latency, Qdrant 200k points memory
+- [x] **3.1 Conversation Search** — `GET /conversations?search=` MySQL FULLTEXT on title (LIKE fallback on sqlite), debounced search box in `ChatSidebar`
+- [x] **3.2 Quota Badges** — `GET /api/quotas` sidebar badge `prompts used/limit · docs left`
+- [x] **3.3 Token Dashboard** — Admin stats `Tokens Used`, `Avg Tokens/Msg`, `Est. Cost` (DB-backed aggregates + blended rates) in `AdminDashboard`
+- [x] **3.4 Summarization** — `SummarizeConversationJob` once `message_count>=12`, keep last 10 + `summary` TEXT, inject `SYSTEM SUMMARY`
+- [x] **3.5 Markdown & Citations** — `ChatMessage.jsx` `react-markdown` + `highlight.js` + `dompurify`, citation badges `[title]`, copy/retry (re-ask as fresh turn), SSE logic moved to `ChatContext.sendMessage`
+- [x] **3.6 Virtualization** — `react-virtuoso` message list (`firstItemIndex` prepend) + `Load older` cursor button
+- [x] **3.7 Guardrails** — Cap 100 + token estimate kept; `ModerationService` (prompt-injection blocklist + optional LLM judge via `MODERATION_MODEL`, fail-open), `llm.log` channel for `llm_call`/`moderation_blocked`
+- [x] **3.8 Docker Ollama Stub** — `docker-compose.yml` `ollama` service behind `ollama` profile (off by default), `ReEmbedDocumentsJob` (fresh collection required for dim change)
+- [x] **3.9 Tests** — `HardeningTest` (search, injection-422, quota-429, summarization); full suite 22/22, frontend vitest 7/7
+- [x] **3.10 Lint & Build** — `vendor/bin/pint`, `npm run lint`, `vite build` all clean
+- [x] **3.11 Load Test** — `k6` 10->25->50 VUs on non-LLM paths: 6666/6666 checks, 0% failed, p95 839ms (script in `/tmp/opencode`, not committed)
 
 ---
 

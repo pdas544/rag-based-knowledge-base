@@ -70,6 +70,13 @@ function AdminDashboard() {
     [`Pending Reviews (${stats?.pending_reviews ?? '—'})`, stats?.processing ? `${stats.processing} processing` : 'Idle'],
   ];
 
+  // 3.3 Token usage row (DB-backed aggregates from /stats)
+  const usageCards = [
+    ['Tokens Used', stats?.total_tokens_used ?? '—'],
+    ['Avg Tokens / Msg', stats?.avg_tokens_per_message ?? '—'],
+    ['Est. Cost (USD)', stats?.estimated_cost_usd != null ? `$${stats.estimated_cost_usd}` : '—'],
+  ];
+
   return (
     <div className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
       <div className="flex justify-between items-center">
@@ -89,6 +96,15 @@ function AdminDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {cards.map(([label, value]) => (
+          <div key={label} className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+            <div className="text-slate-500 text-xs font-semibold uppercase">{label}</div>
+            <div className="text-2xl font-bold text-slate-800 mt-1">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {usageCards.map(([label, value]) => (
           <div key={label} className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
             <div className="text-slate-500 text-xs font-semibold uppercase">{label}</div>
             <div className="text-2xl font-bold text-slate-800 mt-1">{value}</div>

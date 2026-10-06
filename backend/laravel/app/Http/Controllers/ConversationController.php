@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use ZipArchive;
 
 class ConversationController extends Controller
@@ -12,12 +13,21 @@ class ConversationController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $cacheKey = "user:{$user->id}:conversations:list:page:".$request->get('page', 1);
+        $search = trim((string) $request->get('search', ''));
+        $cacheKey = "user:{$user->id}:conversations:list:page:".$request->get('page', 1).':q:'.md5($search);
 
-        $data = Cache::remember($cacheKey, 300, function () use ($user) {
-            return Conversation::where('user_id', $user->id)
-                ->orderByDesc('updated_at')
-                ->paginate(20);
+        // 3.1 Search: MySQL FULLTEXT on title, LIKE fallback elsewhere (sqlite tests)
+        $data = Cache::remember($cacheKey, 300, function () use ($user, $search) {
+            $query = Conversation::where('user_id', $user->id);
+            if ($search !== '') {
+                if (DB::getDriverName() === 'mysql') {
+                    $query->whereFullText('title', $search);
+                } else {
+                    $query->where('title', 'LIKE', '%'.str_replace(['%', '_', '\\'], '', $search).'%');
+                }
+            }
+
+            return $query->orderByDesc('updated_at')->paginate(20);
         });
 
         return response()->json($data);

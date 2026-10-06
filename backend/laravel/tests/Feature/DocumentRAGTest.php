@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\MessageController;
 use App\Models\Conversation;
 use App\Models\Document;
+use App\Models\DocumentChunk;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\LLM\EmbeddingProviderInterface;
@@ -218,5 +220,81 @@ class DocumentRAGTest extends TestCase
             && abs((float) $request['score_threshold'] - (float) config('services.qdrant.score_threshold')) < 0.0001);
 
         $this->assertSame(2, Conversation::find($convoId)->message_count);
+    }
+
+    public function test_below_threshold_question_gets_deterministic_refusal(): void
+    {
+        $user = User::factory()->create();
+        $h = $this->authHeaders($user);
+
+        Http::fake([
+            '*/points/search' => Http::response(['result' => []], 200),
+        ]);
+
+        $convoId = $this->postJson('/api/conversations', [], $h)->assertCreated()->json('conversation.id');
+
+        $stream = $this->postJson("/api/conversations/{$convoId}/messages", ['content' => 'Something totally unrelated to everything'], $h);
+        $stream->assertOk();
+
+        $captured = '';
+        ob_start(function ($chunk) use (&$captured) {
+            $captured .= $chunk;
+
+            return '';
+        });
+        $stream->baseResponse->sendContent();
+        ob_end_clean();
+
+        // LLM skipped: fixed refusal instead of the chat fake's canned reply
+        $this->assertStringContainsString(MessageController::NO_CONTEXT_MESSAGE, $captured);
+        $this->assertStringNotContainsString('canned reply', $captured);
+
+        $assistant = Message::where('conversation_id', $convoId)->where('role', 'assistant')->first();
+        $this->assertSame(MessageController::NO_CONTEXT_MESSAGE, $assistant->content);
+        $this->assertSame([], $assistant->sources);
+    }
+
+    public function test_keyword_fallback_grounds_acronym_questions(): void
+    {
+        $user = User::factory()->create();
+        $h = $this->authHeaders($user);
+
+        $doc = Document::create([
+            'user_id' => $user->id, 'filename' => 'policy.txt', 'mime' => 'text/plain',
+            'size_bytes' => 10, 'sha256' => hash('sha256', 'kw'), 'path' => 'documents/kw.txt',
+            'status' => 'ready', 'chunk_count' => 1,
+        ]);
+        DocumentChunk::create([
+            'document_id' => $doc->id, 'chunk_index' => 0,
+            'content' => 'Any previously availed funding from NIFT such as DSA shall be recovered.',
+            'tokens' => 20, 'qdrant_point_id' => null, 'created_at' => now()->toDateTimeString(),
+        ]);
+
+        // Vector search finds nothing (acronym scores low) — fallback must kick in
+        Http::fake([
+            '*/points/search' => Http::response(['result' => []], 200),
+        ]);
+
+        $convoId = $this->postJson('/api/conversations', [], $h)->assertCreated()->json('conversation.id');
+
+        $stream = $this->postJson("/api/conversations/{$convoId}/messages", ['content' => 'Is there any information regarding DSA'], $h);
+        $stream->assertOk();
+
+        $captured = '';
+        ob_start(function ($chunk) use (&$captured) {
+            $captured .= $chunk;
+
+            return '';
+        });
+        $stream->baseResponse->sendContent();
+        ob_end_clean();
+
+        // LLM ran (no refusal) with the keyword-matched chunk as context
+        $this->assertStringContainsString('canned reply', $captured);
+        $this->assertStringNotContainsString(MessageController::NO_CONTEXT_MESSAGE, $captured);
+        $this->assertStringContainsString('funding from NIFT such as DSA', json_encode(FakeChatRAG::$lastMessages));
+
+        $assistant = Message::where('conversation_id', $convoId)->where('role', 'assistant')->first();
+        $this->assertSame($doc->id, $assistant->sources[0]['doc_id']);
     }
 }
