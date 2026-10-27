@@ -10,6 +10,8 @@
 | Phase 1 | Core Chat (Streaming, Pagination, Retention, Export, Quotas, UI) | 🟩 Done | 10/10 |
 | Phase 2 | RAG + Moderation (Upload, Parse, Chunk, Embed, Review) | 🟩 Done | 12/12 |
 | Phase 3 | Hardening (Search, Badges, Dashboard, Summarization, Tests) | 🟩 Done | 11/11 |
+| Phase 4 | Production Readiness (Infra, Reliability, Security) | 🟩 Done | 22/22 |
+| Phase 5 | RAG Evaluation (Retrieval, Generation, Regression Gates) | ⬜ Not Started | 0/12 |
 
 ---
 
@@ -73,6 +75,58 @@
 - [x] **3.10 Lint & Build** — `vendor/bin/pint`, `npm run lint`, `vite build` all clean
 - [x] **3.11 Load Test** — `k6` 10->25->50 VUs on non-LLM paths: 6666/6666 checks, 0% failed, p95 839ms (script in `/tmp/opencode`, not committed)
 
+## Phase 4 — Production Readiness (Infra, Reliability, Security)
+**Goal:** Deployable beyond single-node dev: durable workers, TLS, backups, resilience. Phases 0-3 are prototype-complete only — none cover these. Evidence gathered 2026-10-11.
+
+### P0 — Blockers
+- [x] **4.1 Queue Worker Service** — `docker-compose.yml` has no `worker`; jobs only drain via manual `exec` (AGENTS.md). Add supervisor worker (`--queue=embed,chat,default --tries=3`), `restart: unless-stopped`
+- [x] **4.2 Scheduler** — `routes/console.php` registers `conversations:prune` 02:00 but nothing runs `schedule:work`/cron; retention never executes. Add scheduler service
+- [x] **4.3 Frontend Prod Serve** — compose `frontend` runs `npm run dev`; nginx `root` is Laravel `public/` and never serves the built SPA. Add `vite build` + nginx static/proxy path
+- [x] **4.4 Prod Env & Secrets** — `.env.example` ships `APP_ENV=local`/`APP_DEBUG=true`/`LOG_LEVEL=debug`; add `.env.production.example`, force `APP_DEBUG=false`, move `root_secret`/`knowledgebase_secret` out of `docker-compose.yml`
+- [x] **4.5 Network Isolation** — drop host port exposure for MySQL `3307`, Redis `6380`, Qdrant `6333` (compose); add auth on internal services
+- [x] **4.6 TLS + HSTS** — nginx `listen 80` only; API Bearer tokens in cleartext. Add TLS termination + HSTS
+- [x] **4.7 Restart / Limits / Healthchecks** — add to app, nginx, frontend, redis, qdrant (only MySQL has healthcheck); Qdrant memory cap 2G (`plans/user-dashboard-rag.md:38`)
+- [x] **4.8 Backups** — `scripts/backup.sh` + `restore.sh` (MySQL dump, Qdrant collection snapshot, `storage/app/private/documents`), nightly cron + runbook
+- [x] **4.9 CI/CD** — no `.github/workflows`; add PR pipeline for `php artisan test`, `vendor/bin/pint`, `npm run lint`, `npm run test`, `vite build`
+
+### P1 — Required before real traffic
+- [x] **4.10 LLM Resilience** — single provider, no retry/backoff/fallback; observed Nvidia free-tier `Service temporarily overloaded` 3x. Add retry + provider fallback + circuit breaker; use paid model for prod (free tier trains on prompts — privacy)
+- [x] **4.11 Log Rotation** — `config/logging.php` `llm_file` is `single` (unbounded). Switch app + llm channels to `daily`
+- [x] **4.12 Upload Content Scan** — plan §6 "scan placeholder" never implemented; `mimes:` trusts extension. Add ClamAV content scan in `ParseChunkEmbedJob`
+- [x] **4.13 Atomic Quotas** — `UserQuota` counters are read-modify-write; concurrent sends race. Use atomic `increment` in a transaction
+- [x] **4.14 Trusted Proxies** — `throttle:60,1` (`routes/api.php:25`) is per-IP; behind a proxy all users share one bucket -> false 429s. Configure `TrustProxies`/forwarded headers
+- [x] **4.15 Session Config** — `SESSION_DRIVER=database` but no `sessions` migration (only `cache`/`jobs`). Align config or add table
+- [x] **4.16 Health & Metrics** — `GET /api/health` (DB/cache/Qdrant/queue/failed jobs, 200/503) + token/cost aggregates in `AdminDashboard`
+
+### P2 — Hardening / scale
+- [x] **4.17 Dockerfile** — runs as root, no `composer install --no-dev --optimize-autoloader`, no opcache tuning, no `.dockerignore`; add `artisan optimize` at deploy
+- [x] **4.18 Nginx Hardening** — no gzip, no security headers (CSP/X-Frame-Options/X-Content-Type-Options), no static caching
+- [x] **4.19 Orphan File Prune** — soft-deleted/rejected uploads remain on disk (prune only touches DB); add storage cleanup
+- [x] **4.20 Index Review** — admin token/cost aggregates unindexed; audit `messages`/`documents` indexes at scale
+- [x] **4.21 Test Gaps** — `ProductionReadinessTest` covers job failures, atomic quota at cap, Qdrant outage, virus scanning, file pruning; API flow covered by feature suite. Browser E2E (Playwright) remains a separate gap
+- [x] **4.22 Runbook & Docs** — deploy steps, env matrix, backup/restore, `ReEmbedDocumentsJob` dim-change runbook
+
+---
+
+## Phase 5 — RAG Evaluation & Quality Gates
+**Goal:** reproducible offline evaluation of retrieval and answer quality, with regression gates and production telemetry.
+**Baseline:** industry IR metrics (Recall@k, MRR, nDCG) + RAGAS-style generation checks (faithfulness, relevancy, context precision/recall) + calibrated LLM-as-judge; no Python/RAGAS runtime dependency.
+
+- [ ] **5.1 Golden dataset & taxonomy** — `backend/laravel/eval/datasets/golden.jsonl` (versioned, hashed): `id`, `question`, `answerable`, `expected_answer`, `relevant_document_ids`, `relevant_chunk_ids`, `tags`, `notes`. 40–60 cases from approved KB docs: acronyms (DSA/NIFT), numeric/budget, eligibility, PDF/DOCX/OCR, multi-chunk, unanswerable, prompt-injection. No PII/secrets; record provenance in `eval/datasets/README.md`
+- [ ] **5.2 Shared retrieval/prompt path** — extract inline retrieval, `keywordFallback`, and prompt construction from `MessageController` into `RagRetriever` + `RagPromptBuilder` so chat and eval run identical logic (prevents eval/chat drift); version the prompt with a hash
+- [ ] **5.3 Retrieval metrics** — `php artisan rag:evaluate --mode=retrieval`; compute **Recall@1/3/5, Precision@3/5, MRR@5, nDCG@5, HitRate@5**, empty-result rate, keyword-fallback rate/precision, retrieval p50/p95. Measure ranking at threshold `0` and production threshold `0.5` separately (`QdrantService::search`)
+- [ ] **5.4 Generation metrics** — `--mode=full`: answer correctness, faithfulness/groundedness, answer relevancy, context precision/recall, **citation accuracy** (cited `[title chN]` must be retrieved/GT), **refusal accuracy** on unanswerable cases, false-answer rate, generation p50/p95, tokens/cost per query. Reuse `messages.sources` JSON
+- [ ] **5.5 LLM-as-judge + calibration** — `RagJudge` via OpenRouter, `temperature=0`, strict JSON rubric, judge model/version logged; human-label 20% sample and report agreement (Cohen's kappa); use a stronger/different judge than the generator; pairwise baseline-vs-candidate for regressions
+- [ ] **5.6 Run persistence & reproducibility** — record git SHA, chat/embedding model, `EMBEDDING_DIM`, Qdrant collection + snapshot, dataset hash, prompt version, `top_k`/threshold, judge model, timestamp; per-question detail (retrieved IDs/scores, answer, citations, judge scores). DB `eval_runs`/`eval_results` (portable MySQL/SQLite DDL, prefix `2026_09_19_000009_…`) + JSON artifacts in `storage/app/private/eval/`
+- [ ] **5.7 Baseline & regression gate** — `--baseline=<run|file>`, per-metric deltas, non-zero exit below `RAG_EVAL_MIN_RECALL_AT_5`, `…MIN_FAITHFULNESS`, `…MAX_FALSE_ANSWER_RATE`, `…MAX_P95_MS`; refuse silent dataset changes unless `--accept-baseline`
+- [ ] **5.8 Production telemetry** — extend `llm_call` logging with `retrieval` block (`used_fallback`, `hits`, `top_score`, retrieval latency); aggregate p50/p95 latency, refusal rate, fallback rate, provider retry/circuit rates, tokens/cost per query; admin-only summary in `AdminDashboard`
+- [ ] **5.9 CI strategy** — PR smoke: 10–15 retrieval-only cases with fake embeddings/`Http::fake()` (no live key, stays hermetic per `phpunit.xml`); nightly full eval on a snapshot collection with a paid key, publishing artifacts and failing on threshold regression
+- [ ] **5.10 Tests** — `RagEvaluationTest` for metric math (Recall/MRR/nDCG), judge JSON parsing/repair, command exit codes and `--dry-run`; live-LLM evaluation stays out of the default suite
+- [ ] **5.11 Docs & runbook** — `docs/RAG_EVALUATION.md` (labeling policy, commands, thresholds, baseline updates, cost/privacy) and `docs/RUNBOOK.md` eval cadence + failure triage
+- [ ] **5.12 Acceptance criteria** — 40+ labeled cases; retrieval + full runs reproducible within tolerance; baseline frozen for 2 models; CI smoke + nightly gate green; admin metrics visible; docs complete
+
+**Open decisions:** judge model + budget; DB tables vs JSON-only; human thumbs-up/down feedback timing; dataset labeling owner; nightly live-eval cost approval.
+
 ---
 
 ## How to Update
@@ -85,6 +139,8 @@
 docker compose exec app php artisan test --filter=ConversationRAGTest
 docker compose exec app vendor/bin/pint
 docker compose exec frontend npm run lint
+docker compose exec app php artisan rag:evaluate --mode=retrieval --dataset=eval/datasets/golden.jsonl
+docker compose exec app php artisan rag:evaluate --mode=full --dataset=eval/datasets/golden.jsonl --baseline=eval/baselines/current.json
 curl http://localhost:82/api/conversations -H "Authorization: Bearer $TOKEN"
 curl http://localhost:6333/collections/knowledge_base
 ```
