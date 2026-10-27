@@ -17,6 +17,20 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(null);
 
+        // Behind a reverse proxy the client IP arrives in X-Forwarded-For.
+        // Without this, throttle:60,1 buckets every user under the proxy IP.
+        // TRUSTED_PROXIES="*" (behind a known LB) or a comma-separated CIDR list.
+        $proxies = trim((string) env('TRUSTED_PROXIES', ''));
+        if ($proxies !== '') {
+            $middleware->trustProxies(
+                at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)),
+                headers: Request::HEADER_X_FORWARDED_FOR
+                    | Request::HEADER_X_FORWARDED_HOST
+                    | Request::HEADER_X_FORWARDED_PORT
+                    | Request::HEADER_X_FORWARDED_PROTO,
+            );
+        }
+
         // Alias the CheckRole middleware for role-based access control
         $middleware->alias([
             'role' => CheckRole::class,

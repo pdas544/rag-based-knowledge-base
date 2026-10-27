@@ -16,7 +16,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * Get the attributes that should be cast.
@@ -42,6 +42,7 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

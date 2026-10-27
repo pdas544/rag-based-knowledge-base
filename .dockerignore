@@ -1,0 +1,14 @@
+.git
+.github
+**/node_modules
+**/vendor
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+# Runtime data (root/www-data owned) must never enter the build context.
+**/storage
+backend/laravel/storage
+backups
+/tmp

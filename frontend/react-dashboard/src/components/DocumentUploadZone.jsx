@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileUp, Upload } from 'lucide-react';
 import { toList } from '../context/ChatContext';
+import { API_BASE } from '../config';
 
-const API = 'http://localhost:82/api';
+const API = API_BASE;
 const TERMINAL = ['ready', 'rejected', 'failed'];
 
 const badge = (status) => {

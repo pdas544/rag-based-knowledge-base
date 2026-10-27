@@ -4,10 +4,13 @@ use App\Http\Controllers\AdminDocumentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\QuotaController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Public probe for the load balancer / orchestrator.
+Route::get('/health', HealthController::class);
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -37,21 +40,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/documents/{document}/reject', [AdminDocumentController::class, 'reject']);
     });
 
-    // Example protected routes for demonstration
-    Route::get('/profile', function (Request $request) {
-        return response()->json([
-            'message' => 'Profile data for '.$request->user()->name,
-            'user' => $request->user(),
-        ]);
-    })->middleware('role:user,admin'); // Allow both user and admin roles
-
-    Route::get('/admin/stats', function (Request $request) {
-        return response()->json([
-            'message' => 'Admin-only statistics',
-            'data' => [
-                'total_users' => 42,
-                'active_sessions' => 15,
-            ],
-        ]);
-    })->middleware('role:admin'); // Allow only admin role
+    // Real identity endpoint (also used by the SPA to refresh the user).
+    Route::get('/profile', [AuthController::class, 'user'])->middleware('role:user,admin');
 });

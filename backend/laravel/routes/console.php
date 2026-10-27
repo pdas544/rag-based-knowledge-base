@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('conversations:prune --days=90')->dailyAt('02:00');
+Schedule::command('documents:prune-files --days=30')->dailyAt('03:00');

@@ -1,0 +1,45 @@
+# Production image. Build context is the repository root:
+#   docker build -f docker/php/Dockerfile.prod -t kb-app:prod .
+#
+# Differences from the dev Dockerfile: application code is baked in, Composer
+# runs with --no-dev --optimize-autoloader, opcache is tuned, and the process
+# runs as www-data.
+
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY backend/laravel/composer.json backend/laravel/composer.lock ./
+RUN composer install \
+        --no-dev --prefer-dist --no-interaction --no-scripts \
+        --optimize-autoloader --no-progress --ignore-platform-req=ext-gd
+
+FROM php:8.3-fpm-bookworm
+
+RUN printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        $PHPIZE_DEPS git unzip libzip-dev libpng-dev libonig-dev libxml2-dev \
+        tesseract-ocr poppler-utils supervisor clamav \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
+    && apt-get purge -y --auto-remove $PHPIZE_DEPS \
+    && rm -f /usr/sbin/policy-rc.d \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/99-opcache.ini
+COPY docker/php/supervisord.conf /etc/supervisor/conf.d/queue.conf
+COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint
+COPY --from=vendor /app/vendor /var/www/html/laravel/vendor
+COPY backend/laravel /var/www/html/laravel
+
+WORKDIR /var/www/html/laravel
+
+RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod +x /usr/local/bin/entrypoint
+
+USER www-data
+
+EXPOSE 9000
+
+ENTRYPOINT ["entrypoint"]
+CMD ["php-fpm", "-F"]

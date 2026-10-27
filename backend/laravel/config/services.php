@@ -45,6 +45,25 @@ return [
         'app_url' => env('OPENROUTER_APP_URL', env('APP_URL')),
         'app_title' => env('OPENROUTER_APP_TITLE', env('APP_NAME')),
         'temperature' => (float) env('LLM_TEMPERATURE', 0.2),
+        // Production resilience: retry transient provider failures and fall
+        // back to alternate OpenRouter models when the primary is unhealthy.
+        'max_retries' => (int) env('LLM_MAX_RETRIES', 3),
+        'retry_backoff_ms' => (int) env('LLM_RETRY_BACKOFF_MS', 500),
+        'timeout' => (int) env('LLM_TIMEOUT', 120),
+        'fallback_models' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('OPENROUTER_FALLBACK_MODELS', '')),
+        ))),
+        // Open a circuit after N consecutive failures for TTL seconds.
+        'circuit_threshold' => (int) env('LLM_CIRCUIT_THRESHOLD', 5),
+        'circuit_ttl' => (int) env('LLM_CIRCUIT_TTL', 300),
+    ],
+
+    'clamav' => [
+        // Opt-in malware scanning. Enable only when clamd/clamdscan is present.
+        'enabled' => (bool) env('CLAMAV_ENABLED', false),
+        'binary' => env('CLAMAV_BINARY', 'clamscan'),
+        'timeout' => (int) env('CLAMAV_TIMEOUT', 60),
     ],
 
     'moderation' => [
@@ -58,6 +77,7 @@ return [
         'host' => env('QDRANT_HOST', 'http://qdrant:6333'),
         'port' => env('QDRANT_PORT', '6333'),
         'collection' => env('QDRANT_COLLECTION', 'knowledge_base'),
+        'api_key' => env('QDRANT_API_KEY', ''),
         'vector_size' => (int) env('EMBEDDING_DIM', 2048),
         // Cosine threshold calibrated for Nemotron (OpenAI-tuned 0.72 was too strict)
         'score_threshold' => (float) env('QDRANT_SCORE_THRESHOLD', 0.5),

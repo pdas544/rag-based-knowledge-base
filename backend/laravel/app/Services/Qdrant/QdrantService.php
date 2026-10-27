@@ -2,6 +2,7 @@
 
 namespace App\Services\Qdrant;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -11,13 +12,39 @@ class QdrantService
         private string $host = 'http://qdrant:6333',
         private string $collection = 'knowledge_base',
         private int $vectorSize = 1536,
+        private string $apiKey = '',
     ) {
         $this->host = rtrim($this->host, '/');
     }
 
+    /**
+     * Pending request with the optional API key (QDRANT__SERVICE__API_KEY)
+     * required when Qdrant is not exposed only to the private network.
+     */
+    private function client(int $timeout): PendingRequest
+    {
+        $request = Http::timeout($timeout);
+
+        return $this->apiKey !== ''
+            ? $request->withHeaders(['api-key' => $this->apiKey])
+            : $request;
+    }
+
+    /**
+     * Liveness probe for /api/health. Never throws.
+     */
+    public function ready(): bool
+    {
+        try {
+            return $this->client(3)->get("{$this->host}/readyz")->successful();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function createCollection(): bool
     {
-        $response = Http::timeout(30)->put("{$this->host}/collections/{$this->collection}", [
+        $response = $this->client(30)->put("{$this->host}/collections/{$this->collection}", [
             'vectors' => [
                 'size' => $this->vectorSize,
                 'distance' => 'Cosine',
@@ -40,7 +67,7 @@ class QdrantService
             'payload' => $p['payload'] ?? [],
         ])->values()->all();
 
-        $response = Http::timeout(60)->put("{$this->host}/collections/{$collection}/points", [
+        $response = $this->client(60)->put("{$this->host}/collections/{$collection}/points", [
             'points' => $mapped,
         ]);
 
@@ -58,7 +85,7 @@ class QdrantService
             ], $must),
         ];
 
-        $response = Http::timeout(30)->post("{$this->host}/collections/{$this->collection}/points/search", [
+        $response = $this->client(30)->post("{$this->host}/collections/{$this->collection}/points/search", [
             'vector' => $vector,
             'limit' => $topK,
             'score_threshold' => $threshold,
@@ -86,7 +113,7 @@ class QdrantService
     {
         $collection ??= $this->collection;
 
-        $response = Http::timeout(30)->post("{$this->host}/collections/{$collection}/points/delete", [
+        $response = $this->client(30)->post("{$this->host}/collections/{$collection}/points/delete", [
             'filter' => [
                 'must' => [
                     ['key' => 'document_id', 'match' => ['value' => $documentId]],
@@ -101,7 +128,7 @@ class QdrantService
     {
         $collection ??= $this->collection;
 
-        $response = Http::timeout(30)->post("{$this->host}/collections/{$collection}/points/payload", [
+        $response = $this->client(30)->post("{$this->host}/collections/{$collection}/points/payload", [
             'payload' => ['status' => $status],
             'filter' => [
                 'must' => [

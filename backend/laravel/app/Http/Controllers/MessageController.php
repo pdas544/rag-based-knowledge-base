@@ -69,6 +69,17 @@ class MessageController extends Controller
         }
 
         $user = $request->user();
+
+        // Atomic quota reservation (4.13): consume the prompt only after
+        // validation/moderation, and only if the cap is not already reached.
+        if (! $user->isAdmin() && ! UserQuota::tryConsumePrompt($user->id)) {
+            return response()->json(
+                ['message' => 'Daily quota exceeded.'],
+                429,
+                ['Retry-After' => (string) now()->endOfDay()->diffInSeconds(now())]
+            );
+        }
+
         $userMessage = Message::create([
             'conversation_id' => $conversation->id,
             'user_id' => $user->id,
@@ -207,9 +218,9 @@ class MessageController extends Controller
                 $conversation->update(['title' => mb_substr($content, 0, 40)]);
             }
 
-            // Quota increment
-            UserQuota::forToday($user->id)
-                ->incrementEach(['prompt_count' => 1, 'token_count' => ($userMessage->tokens ?? 0) + $tokens]);
+            // Prompt count was already reserved atomically before streaming;
+            // only the token usage is recorded here.
+            UserQuota::recordTokens($user->id, ($userMessage->tokens ?? 0) + $tokens);
 
             // Invalidate cache
             Cache::forget("conversation:{$conversation->id}:messages:last10");

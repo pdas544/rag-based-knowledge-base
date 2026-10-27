@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import { setLoadingGlobalFn, setUnauthorizedHandlerFn } from './axios';
 import api from './axios'; // Import our axios instance
+import { API_BASE } from './config';
 import toast from 'react-hot-toast';
 import { ShieldCheck, FileText, Database } from 'lucide-react';
 import Login from './pages/Login';
@@ -37,8 +38,8 @@ function AdminDashboard() {
 
   const load = useCallback(async () => {
     const [s, r] = await Promise.all([
-      fetch('http://localhost:82/api/admin/documents/stats', { headers: authHeaders() }),
-      fetch('http://localhost:82/api/admin/documents?status=awaiting_review', { headers: authHeaders() }),
+      fetch(`${API_BASE}/admin/documents/stats`, { headers: authHeaders() }),
+      fetch(`${API_BASE}/admin/documents?status=awaiting_review`, { headers: authHeaders() }),
     ]);
     if (s.ok) setStats(await s.json());
     if (r.ok) setReviews((await r.json()).data ?? []);
@@ -51,7 +52,7 @@ function AdminDashboard() {
   }, [load]);
 
   const decide = async (id, action) => {
-    const res = await fetch(`http://localhost:82/api/admin/documents/${id}/${action}`, {
+    const res = await fetch(`${API_BASE}/admin/documents/${id}/${action}`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({}),

@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { API_BASE } from '../config';
 
 const ChatContext = createContext(null);
 
@@ -35,7 +36,7 @@ export const ChatProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (!token) return;
     const qs = search ? `?search=${encodeURIComponent(search)}` : '';
-    const res = await fetch(`http://localhost:82/api/conversations${qs}`, {
+    const res = await fetch(`${API_BASE}/conversations${qs}`, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return;
@@ -46,7 +47,7 @@ export const ChatProvider = ({ children }) => {
 
   const createConversation = useCallback(async () => {
     const token = localStorage.getItem('token');
-    const res = await fetch('http://localhost:82/api/conversations', {
+    const res = await fetch(`${API_BASE}/conversations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({}),
@@ -67,7 +68,7 @@ export const ChatProvider = ({ children }) => {
     setMessages([]);
     setNextCursor(null);
     const token = localStorage.getItem('token');
-    const res = await fetch(`http://localhost:82/api/conversations/${id}/messages?limit=20`, {
+    const res = await fetch(`${API_BASE}/conversations/${id}/messages?limit=20`, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return;
@@ -80,7 +81,7 @@ export const ChatProvider = ({ children }) => {
   const loadMore = useCallback(async () => {
     if (!activeId || !nextCursor) return;
     const token = localStorage.getItem('token');
-    const res = await fetch(`http://localhost:82/api/conversations/${activeId}/messages?limit=20&cursor=${nextCursor}`, {
+    const res = await fetch(`${API_BASE}/conversations/${activeId}/messages?limit=20&cursor=${nextCursor}`, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return;
@@ -95,7 +96,7 @@ export const ChatProvider = ({ children }) => {
   const refreshQuota = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    const res = await fetch('http://localhost:82/api/quotas', {
+    const res = await fetch(`${API_BASE}/quotas`, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
     if (res.ok) setQuota(await res.json());
@@ -117,7 +118,7 @@ export const ChatProvider = ({ children }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:82/api/conversations/${id}/messages`, {
+      const res = await fetch(`${API_BASE}/conversations/${id}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

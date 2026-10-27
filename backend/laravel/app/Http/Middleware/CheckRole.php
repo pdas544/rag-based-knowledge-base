@@ -11,7 +11,7 @@ class CheckRole
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next, ...$roles)
     {
@@ -19,6 +19,7 @@ class CheckRole
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Unauthorized access.'], 401);
             }
+
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 
@@ -26,6 +27,7 @@ class CheckRole
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'You do not have permission to access this resource.'], 403);
             }
+
             return redirect('/')->with('error', 'You do not have permission to access this resource.');
         }
 

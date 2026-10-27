@@ -6,6 +6,8 @@ use App\Models\Document;
 use App\Models\DocumentChunk;
 use App\Services\LLM\LLMFactory;
 use App\Services\Qdrant\QdrantService;
+use App\Services\Scanning\InfectedFileException;
+use App\Services\Scanning\VirusScanner;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -27,7 +29,7 @@ class ParseChunkEmbedJob implements ShouldQueue
 
     public function __construct(public int $documentId) {}
 
-    public function handle(QdrantService $qdrant): void
+    public function handle(QdrantService $qdrant, VirusScanner $scanner): void
     {
         $document = Document::find($this->documentId);
         if (! $document || in_array($document->status, ['ready', 'rejected'])) {
@@ -37,6 +39,13 @@ class ParseChunkEmbedJob implements ShouldQueue
         $document->update(['status' => 'processing', 'error' => null]);
 
         try {
+            // 4.12: content scan before parsing (no-op unless ClamAV is enabled).
+            $disk = Storage::disk('local');
+            if (! $disk->exists($document->path)) {
+                throw new \RuntimeException('Source file missing: '.$document->path);
+            }
+            $scanner->scan($disk->path($document->path));
+
             $text = $this->extractText($document);
             $text = (string) preg_replace('/\s+/u', ' ', trim($text));
 
@@ -100,6 +109,16 @@ class ParseChunkEmbedJob implements ShouldQueue
             }
 
             $document->update(['status' => 'awaiting_review', 'chunk_count' => count($rows)]);
+        } catch (InfectedFileException $e) {
+            // Malware is not retryable: quarantine (delete) and stop.
+            Storage::disk('local')->delete($document->path);
+            $document->update(['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 1000)]);
+            Log::error('ParseChunkEmbedJob: malware detected', [
+                'document_id' => $document->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
         } catch (\Throwable $e) {
             Log::error('ParseChunkEmbedJob failed', ['document_id' => $document->id, 'error' => $e->getMessage()]);
             $document->update(['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 1000)]);

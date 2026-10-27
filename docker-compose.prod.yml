@@ -1,0 +1,196 @@
+# Production stack (standalone file, not an override of docker-compose.yml).
+#
+#   cp .env.example .env && edit       # infra secrets (MySQL/Redis/Qdrant/TLS)
+#   cp backend/laravel/.env.production.example backend/laravel/.env && edit
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Only the frontend publishes a host port. MySQL, Redis, Qdrant and Laravel are
+# reachable exclusively on the private `kb` network; Redis and Qdrant require
+# credentials (root .env + backend .env must agree).
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.prod
+    image: kb-app:prod
+    container_name: kb-app
+    restart: unless-stopped
+    env_file: ./backend/laravel/.env
+    volumes:
+      - documents_data:/var/www/html/laravel/storage/app/private
+      - logs_data:/var/www/html/laravel/storage/logs
+      - clamav_data:/var/lib/clamav:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php -v >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [kb]
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.prod
+    image: kb-app:prod
+    container_name: kb-worker
+    restart: unless-stopped
+    stop_grace_period: 30s
+    command: ["supervisord", "-c", "/etc/supervisor/conf.d/queue.conf"]
+    env_file: ./backend/laravel/.env
+    volumes:
+      - documents_data:/var/www/html/laravel/storage/app/private
+      - logs_data:/var/www/html/laravel/storage/logs
+      - clamav_data:/var/lib/clamav:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php -v >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [kb]
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.prod
+    image: kb-app:prod
+    container_name: kb-scheduler
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+    env_file: ./backend/laravel/.env
+    volumes:
+      - documents_data:/var/www/html/laravel/storage/app/private
+      - logs_data:/var/www/html/laravel/storage/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php -v >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [kb]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: kb-nginx
+    restart: unless-stopped
+    volumes:
+      - ./backend/laravel/public:/var/www/html/laravel/public:ro
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
+      # TLS (4.6): see docker/nginx/tls.conf.example
+      # - ./docker/nginx/tls.conf:/etc/nginx/conf.d/default.conf:ro
+      # - ./docker/certs:/etc/nginx/certs:ro
+    depends_on: [app]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/up || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [kb]
+
+  frontend:
+    build:
+      context: ./frontend/react-dashboard
+      args:
+        VITE_API_BASE_URL: /api
+    image: kb-frontend:prod
+    container_name: kb-frontend
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      # TLS (4.6): publish 443 and use docker/nginx/tls.conf.example upstream.
+      # - "443:443"
+    depends_on: [nginx]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [kb]
+
+  mysql:
+    image: mysql:8.4
+    container_name: kb-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?set MYSQL_DATABASE in root .env}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER in root .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in root .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in root .env}
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [kb]
+
+  redis:
+    image: redis:7-alpine
+    container_name: kb-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in root .env}"]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in root .env}
+    networks: [kb]
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    container_name: kb-qdrant
+    restart: unless-stopped
+    mem_limit: 2g
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?set QDRANT_API_KEY in root .env}
+    volumes: [qdrant_data:/qdrant/storage]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [kb]
+
+  clamav:
+    image: clamav/clamav:stable
+    container_name: kb-clamav
+    restart: unless-stopped
+    environment:
+      # The shared socket is private to the kb network; 666 lets www-data connect.
+      CLAMD_CONF_LocalSocketMode: "666"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    networks: [kb]
+
+networks:
+  kb:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  qdrant_data:
+  clamav_data:
+  documents_data:
+  logs_data:

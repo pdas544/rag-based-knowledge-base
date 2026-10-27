@@ -6,6 +6,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.production.example
 
 # IDEs, editors, and OS files
 .idea/
@@ -36,3 +37,8 @@ pnpm-debug.log*
 # Application storage
 storage/documents/*
 !storage/documents/.gitkeep
+
+# Backup archives
+backups/
+*.sql.gz
+*.tar.gz

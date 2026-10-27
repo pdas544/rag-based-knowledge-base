@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { API_BASE } from './config';
 
 // We'll use a simple loading state that is set by the App component via a setter.
 // We'll have a variable that holds the setter function.
@@ -16,7 +17,7 @@ export const setUnauthorizedHandlerFn = (fn) => {
 };
 
 const api = axios.create({
-  baseURL: 'http://localhost:82/api',
+  baseURL: API_BASE,
 });
 
 // Request interceptor

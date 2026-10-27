@@ -27,12 +27,19 @@ class OpenRouterProviderTest extends TestCase
         parent::tearDown();
     }
 
-    private function providerWithBody(string $sseBody): TestableOpenRouterProvider
+    private function providerWithBody(string $sseBody, int $attempts = 3): TestableOpenRouterProvider
     {
-        $mock = new MockHandler([new Response(200, [], $sseBody)]);
+        // Distinct Response objects: a shared instance has a single body
+        // stream that is consumed after the first attempt.
+        $responses = array_map(fn () => new Response(200, [], $sseBody), range(1, max(1, $attempts)));
+        $mock = new MockHandler($responses);
         TestableOpenRouterProvider::$client = new Client(['handler' => HandlerStack::create($mock)]);
 
-        return new TestableOpenRouterProvider(apiKey: 'test-key');
+        return new TestableOpenRouterProvider(
+            apiKey: 'test-key',
+            maxRetries: $attempts,
+            retryBackoffMs: 0,
+        );
     }
 
     public function test_temperature_defaults_to_configured_value(): void
@@ -76,5 +83,19 @@ class OpenRouterProviderTest extends TestCase
         $this->expectExceptionMessageMatches('/OpenRouter: Rate limit exceeded/');
 
         iterator_to_array($provider->streamChat([]));
+    }
+
+    public function test_transient_error_is_retried_before_succeeding(): void
+    {
+        $mock = new MockHandler([
+            new Response(200, [], "data: {\"error\":{\"message\":\"Service temporarily overloaded\",\"code\":503}}\n\n"),
+            new Response(200, [], "data: {\"choices\":[{\"delta\":{\"content\":\"Recovered\"}}]}\n\n"),
+            new Response(200, [], "data: [DONE]\n\n"),
+        ]);
+        TestableOpenRouterProvider::$client = new Client(['handler' => HandlerStack::create($mock)]);
+
+        $provider = new TestableOpenRouterProvider(apiKey: 'test-key', maxRetries: 3, retryBackoffMs: 0);
+
+        $this->assertSame(['Recovered'], iterator_to_array($provider->streamChat([])));
     }
 }

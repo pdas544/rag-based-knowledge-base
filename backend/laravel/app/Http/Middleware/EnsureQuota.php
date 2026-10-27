@@ -19,6 +19,8 @@ class EnsureQuota
 
         $quota = UserQuota::forToday($user->id);
 
+        // Fast reject; the authoritative atomic reservation happens in
+        // MessageController after validation (UserQuota::tryConsumePrompt).
         if ($quota->prompt_count >= 30 || $quota->token_count >= 20000) {
             return response()->json(
                 ['message' => 'Daily quota exceeded.'],

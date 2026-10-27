@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class UserQuota extends Model
 {
@@ -57,5 +58,38 @@ class UserQuota extends Model
         } catch (\Throwable) {
             return static::where('user_id', $userId)->whereDate('date', $date)->firstOrFail();
         }
+    }
+
+    /**
+     * Atomically reserve one prompt against today's cap.
+     *
+     * A single UPDATE ... WHERE prompt_count < limit avoids the check-then-
+     * increment race: two concurrent requests can no longer both observe
+     * 29 and push the counter past the cap.
+     */
+    public static function tryConsumePrompt(int $userId, int $promptLimit = 30, int $tokenLimit = 20000): bool
+    {
+        $quota = static::forToday($userId);
+
+        $affected = static::query()
+            ->whereKey($quota->getKey())
+            ->where('prompt_count', '<', $promptLimit)
+            ->where('token_count', '<', $tokenLimit)
+            ->update(['prompt_count' => DB::raw('prompt_count + 1')]);
+
+        return $affected > 0;
+    }
+
+    /**
+     * Record tokens after the reply is generated. Atomic increment, so
+     * concurrent streams cannot overwrite each other's usage.
+     */
+    public static function recordTokens(int $userId, int $tokens): void
+    {
+        if ($tokens <= 0) {
+            return;
+        }
+
+        static::forToday($userId)->increment('token_count', $tokens);
     }
 }
