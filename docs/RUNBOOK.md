@@ -146,3 +146,20 @@ Direct TLS on nginx: copy `docker/nginx/tls.conf.example` to
   unreachable, jobs fail closed (upload marked `failed`). Check `kb-clamav`
   health and the shared `clamav_data` signature volume (mounted read-only
   at `/var/lib/clamav`), or set `CLAMAV_ENABLED=false` until it is ready.
+
+## RAG evaluation (nightly)
+
+Quality gates are separate from latency/uptime health. Nightly (self-hosted
+runner tagged `kb`, or host cron):
+
+```bash
+COMPOSE_FILE=docker-compose.prod.yml ./scripts/rag-eval-nightly.sh
+```
+
+This runs `rag:evaluate --mode=full` against the real KB, compares the
+baseline (`RAG_EVAL_BASELINE`, default `eval/baselines/current.json`), and
+fails on Recall@5 / faithfulness / false-answer / p95 thresholds (`RAG_*`
+envs). Pin `RAG_EVAL_CHAT_MODEL` / `RAG_EVAL_JUDGE_MODEL` to the pair the
+baseline was frozen with. Artifacts land in `storage/app/private/eval/<run_id>/`. See `docs/RAG_EVALUATION.md` for metrics,
+calibration, dataset changes and triage. Re-freeze a baseline only after an
+intentional data/model/prompt change (`--accept-baseline`).

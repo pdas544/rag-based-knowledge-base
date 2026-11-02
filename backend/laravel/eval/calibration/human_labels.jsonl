@@ -1,0 +1,12 @@
+{"id":"q001","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"grant figures verified against chunk 16"}
+{"id":"q003","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"DSA figure verified against chunks 22/27"}
+{"id":"q006","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"wage-loss table verified"}
+{"id":"q012","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"internal marks verified"}
+{"id":"q019","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"CBDP ceiling verified"}
+{"id":"q023","faithfulness":1,"correctness":0,"labeled_by":"author","notes":"retrieval returned chunk 15, not the Table 7 criteria; answer omitted the marks"}
+{"id":"q035","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"registry counts verified"}
+{"id":"q041","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"IPR ownership verified"}
+{"id":"q042","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"image requirement verified"}
+{"id":"q046","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"refusal expected for out-of-domain"}
+{"id":"q047","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"refusal expected for missing GST fact"}
+{"id":"q050","faithfulness":1,"correctness":1,"labeled_by":"author","notes":"injection must be blocked/refused"}

@@ -1,0 +1,78 @@
+{
+    "run_id": null,
+    "dataset_hash": "8c129ac5dde08a783c51dacc440066ca234570461de05a701ac7f576a7ba89d0",
+    "metrics": {
+        "counts": {
+            "cases": 50,
+            "answerable": 45,
+            "unanswerable": 5,
+            "fallback_cases": 21
+        },
+        "retrieval_ranking": {
+            "recall_at_1": 0.7333,
+            "recall_at_3": 0.9222,
+            "recall_at_5": 1,
+            "precision_at_3": 0.3704,
+            "precision_at_5": 0.24,
+            "mrr_at_5": 0.8933,
+            "ndcg_at_5": 0.9205,
+            "hit_at_5": 1
+        },
+        "retrieval_production": {
+            "recall_at_1": 0.5556,
+            "recall_at_3": 0.8889,
+            "recall_at_5": 0.8889,
+            "precision_at_3": 0.3556,
+            "precision_at_5": 0.2133,
+            "mrr_at_5": 0.7444,
+            "ndcg_at_5": 0.7876,
+            "hit_at_5": 0.9111,
+            "empty_result_rate": 0,
+            "fallback_rate": 0.4667,
+            "fallback_precision": 0.9524,
+            "p50_latency_ms": 627.63,
+            "p95_latency_ms": 990.84
+        },
+        "generation": {
+            "answer_correctness": 0.8938,
+            "faithfulness": 0.9792,
+            "answer_relevancy": 0.9583,
+            "context_precision": 0.9583,
+            "context_recall": 0.9479,
+            "citation_accuracy": 0.92,
+            "refusal_accuracy": 1,
+            "false_answer_rate": 0,
+            "refusals": 5,
+            "p50_latency_ms": 1936.5,
+            "p95_latency_ms": 2649.05,
+            "tokens_total": 1956,
+            "cost_usd_total": 0.000585,
+            "tokens_per_query": 39.1,
+            "cost_usd_per_query": 1.2e-5
+        },
+        "calibration": {
+            "labeled": 10,
+            "faithfulness_kappa": 1,
+            "correctness_kappa": 1
+        }
+    },
+    "metadata": {
+        "mode": "full",
+        "dataset_path": "eval/datasets/golden.jsonl",
+        "dataset_hash": "8c129ac5dde08a783c51dacc440066ca234570461de05a701ac7f576a7ba89d0",
+        "git_sha": null,
+        "chat_model": "openai/gpt-4o-mini",
+        "embedding_model": "nvidia/nemotron-3-embed-1b:free",
+        "embedding_dim": 2048,
+        "collection": "knowledge_base",
+        "prompt_version": "rag-prompt-v2",
+        "judge_model": "google/gemini-2.5-flash",
+        "judge_version": "rag-judge-v2",
+        "top_k": 5,
+        "threshold": 0.5,
+        "started_at": "2026-11-02T05:24:18+00:00",
+        "finished_at": "2026-11-02T05:28:36+00:00",
+        "php": "8.3.36"
+    },
+    "frozen_at": "2026-11-02T05:28:36+00:00"
+}

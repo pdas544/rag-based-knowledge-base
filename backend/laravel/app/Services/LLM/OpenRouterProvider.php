@@ -5,6 +5,7 @@ namespace App\Services\LLM;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInterface
 {
@@ -41,6 +42,12 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
         // Prefer healthy models; if every circuit is open, still probe the
         // primary once so a stale breaker cannot lock the app out forever.
         $candidates = array_values(array_filter($models, fn ($m) => ! $this->circuitOpen($m)));
+        if (count($candidates) < count($models)) {
+            $this->incrementCounter('circuit_open');
+            Log::channel('llm')->warning('llm_circuit_open', [
+                'open' => array_values(array_diff($models, $candidates)),
+            ]);
+        }
         if ($candidates === []) {
             $candidates = [$primary];
         }
@@ -48,7 +55,14 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
         $emitted = false;
         $lastError = null;
 
+        $previousModel = null;
         foreach ($candidates as $model) {
+            if ($previousModel !== null) {
+                $this->incrementCounter('fallbacks');
+                Log::channel('llm')->warning('llm_fallback', ['from' => $previousModel, 'to' => $model]);
+            }
+            $previousModel = $model;
+
             for ($attempt = 1; $attempt <= max(1, $this->maxRetries); $attempt++) {
                 try {
                     foreach ($this->streamOnce($messages, $model) as $delta) {
@@ -69,6 +83,12 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
                     }
 
                     if ($attempt < max(1, $this->maxRetries)) {
+                        $this->incrementCounter('retries');
+                        Log::channel('llm')->info('llm_retry', [
+                            'model' => $model,
+                            'attempt' => $attempt,
+                            'error' => mb_substr($e->getMessage(), 0, 200),
+                        ]);
                         $this->sleepBackoff($attempt);
                     }
                 }
@@ -161,7 +181,26 @@ class OpenRouterProvider implements EmbeddingProviderInterface, LLMProviderInter
     private function recordFailure(string $model): void
     {
         $key = $this->circuitKey($model);
-        Cache::put($key, (int) Cache::get($key, 0) + 1, $this->circuitTtl);
+        $failures = (int) Cache::get($key, 0) + 1;
+        Cache::put($key, $failures, $this->circuitTtl);
+
+        if ($failures === $this->circuitThreshold) {
+            $this->incrementCounter('circuit_opened');
+            Log::channel('llm')->warning('llm_circuit_opened', [
+                'model' => $model,
+                'failures' => $failures,
+                'ttl' => $this->circuitTtl,
+            ]);
+        }
+    }
+
+    private function incrementCounter(string $name): void
+    {
+        try {
+            Cache::increment("llm:{$name}:".now()->toDateString());
+        } catch (\Throwable) {
+            // Telemetry must never break generation.
+        }
     }
 
     private function recordSuccess(string $model): void

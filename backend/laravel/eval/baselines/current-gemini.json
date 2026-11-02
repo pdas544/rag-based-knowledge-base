@@ -1,0 +1,73 @@
+{
+    "run_id": null,
+    "dataset_hash": "8c129ac5dde08a783c51dacc440066ca234570461de05a701ac7f576a7ba89d0",
+    "metrics": {
+        "counts": {
+            "cases": 50,
+            "answerable": 45,
+            "unanswerable": 5,
+            "fallback_cases": 21
+        },
+        "retrieval_ranking": {
+            "recall_at_1": 0.7333,
+            "recall_at_3": 0.9222,
+            "recall_at_5": 1,
+            "precision_at_3": 0.3704,
+            "precision_at_5": 0.24,
+            "mrr_at_5": 0.8933,
+            "ndcg_at_5": 0.9205,
+            "hit_at_5": 1
+        },
+        "retrieval_production": {
+            "recall_at_1": 0.5556,
+            "recall_at_3": 0.8889,
+            "recall_at_5": 0.8889,
+            "precision_at_3": 0.3556,
+            "precision_at_5": 0.2133,
+            "mrr_at_5": 0.7444,
+            "ndcg_at_5": 0.7876,
+            "hit_at_5": 0.9111,
+            "empty_result_rate": 0,
+            "fallback_rate": 0.4667,
+            "fallback_precision": 0.9524,
+            "p50_latency_ms": 816.62,
+            "p95_latency_ms": 830.5
+        },
+        "generation": {
+            "answer_correctness": 0.9229,
+            "faithfulness": 0.9333,
+            "answer_relevancy": 0.9479,
+            "context_precision": 0.9063,
+            "context_recall": 0.875,
+            "citation_accuracy": 0.9,
+            "refusal_accuracy": 1,
+            "false_answer_rate": 0,
+            "refusals": 5,
+            "p50_latency_ms": 1623.5,
+            "p95_latency_ms": 2231.85,
+            "tokens_total": 2490,
+            "cost_usd_total": 0.000992,
+            "tokens_per_query": 49.8,
+            "cost_usd_per_query": 2.0e-5
+        }
+    },
+    "metadata": {
+        "mode": "full",
+        "dataset_path": "eval/datasets/golden.jsonl",
+        "dataset_hash": "8c129ac5dde08a783c51dacc440066ca234570461de05a701ac7f576a7ba89d0",
+        "git_sha": null,
+        "chat_model": "google/gemini-2.5-flash",
+        "embedding_model": "nvidia/nemotron-3-embed-1b:free",
+        "embedding_dim": 2048,
+        "collection": "knowledge_base",
+        "prompt_version": "rag-prompt-v2",
+        "judge_model": "openai/gpt-4o-mini",
+        "judge_version": "rag-judge-v2",
+        "top_k": 5,
+        "threshold": 0.5,
+        "started_at": "2026-11-02T05:30:55+00:00",
+        "finished_at": "2026-11-02T05:35:37+00:00",
+        "php": "8.3.36"
+    },
+    "frozen_at": "2026-11-02T05:35:37+00:00"
+}

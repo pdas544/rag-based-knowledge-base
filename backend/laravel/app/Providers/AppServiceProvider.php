@@ -6,6 +6,7 @@ use App\Services\LLM\EmbeddingProviderInterface;
 use App\Services\LLM\LLMProviderInterface;
 use App\Services\LLM\OpenRouterProvider;
 use App\Services\Qdrant\QdrantService;
+use App\Services\RAG\RagJudge;
 use App\Services\Scanning\VirusScanner;
 use Illuminate\Support\ServiceProvider;
 
@@ -34,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(LLMProviderInterface::class, OpenRouterProvider::class);
         $this->app->bind(EmbeddingProviderInterface::class, OpenRouterProvider::class);
+
+        $this->app->singleton(RagJudge::class, fn () => new RagJudge(
+            apiKey: (string) config('services.llm.openrouter_api_key', ''),
+            baseUrl: (string) config('services.llm.openrouter_base_url', 'https://openrouter.ai/api/v1'),
+            model: (string) config('services.rag.judge_model', ''),
+            timeout: (int) config('services.llm.timeout', 120),
+        ));
 
         $this->app->singleton(VirusScanner::class, fn () => new VirusScanner(
             enabled: (bool) config('services.clamav.enabled', false),

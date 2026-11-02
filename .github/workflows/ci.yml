@@ -33,6 +33,8 @@ jobs:
           php artisan key:generate
 
       - run: vendor/bin/pint --test
+      - name: RAG eval smoke (hermetic, fake providers)
+        run: php artisan test --filter='RagEvaluationTest|RetrievalMetricsTest'
       - run: php artisan test
 
   frontend:

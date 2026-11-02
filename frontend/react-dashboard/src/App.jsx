@@ -78,6 +78,17 @@ function AdminDashboard() {
     ['Est. Cost (USD)', stats?.estimated_cost_usd != null ? `$${stats.estimated_cost_usd}` : '—'],
   ];
 
+  // 5.8 Offline RAG quality snapshot (latest eval run) + provider telemetry.
+  const evalMetrics = stats?.eval?.metrics ?? {};
+  const pct = (value) => (value == null ? '—' : `${Math.round(value * 100)}%`);
+  const evalP95 = evalMetrics.generation?.p95_latency_ms ?? evalMetrics.retrieval_production?.p95_latency_ms;
+  const evalCards = [
+    ['Recall@5', pct(evalMetrics.retrieval_production?.recall_at_5)],
+    ['Faithfulness', pct(evalMetrics.generation?.faithfulness)],
+    ['False Answers', pct(evalMetrics.generation?.false_answer_rate)],
+    ['Eval p95', evalP95 == null ? '—' : `${Math.round(evalP95)} ms`],
+  ];
+
   return (
     <div className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
       <div className="flex justify-between items-center">
@@ -112,6 +123,21 @@ function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {evalCards.map(([label, value]) => (
+          <div key={label} className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+            <div className="text-slate-500 text-xs font-semibold uppercase">{label}</div>
+            <div className="text-2xl font-bold text-slate-800 mt-1">{value}</div>
+          </div>
+        ))}
+      </div>
+      {stats?.llm_telemetry && (
+        <div className="text-xs text-slate-500">
+          LLM today: retries {stats.llm_telemetry.retries_today} · fallbacks {stats.llm_telemetry.fallbacks_today} ·
+          circuit open {stats.llm_telemetry.circuit_open_today}
+        </div>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200 font-semibold text-sm text-slate-700">

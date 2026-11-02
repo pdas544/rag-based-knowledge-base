@@ -1,0 +1,38 @@
+name: RAG evaluation (nightly)
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: rag-eval-nightly
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    # Enable with repository variable RAG_EVAL_NIGHTLY=true. The runner must be
+    # self-hosted on the KB host (labels: self-hosted, kb) so it can reach the
+    # production compose stack and the real knowledge base.
+    if: ${{ vars.RAG_EVAL_NIGHTLY == 'true' }}
+    runs-on: [self-hosted, kb]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run full evaluation against the live KB
+        env:
+          COMPOSE_FILE: docker-compose.prod.yml
+          RAG_EVAL_ARTIFACTS: ${{ github.workspace }}/eval-artifacts
+          RAG_EVAL_CHAT_MODEL: ${{ vars.RAG_EVAL_CHAT_MODEL }}
+          RAG_EVAL_JUDGE_MODEL: ${{ vars.RAG_EVAL_JUDGE_MODEL }}
+          RAG_EVAL_BASELINE: ${{ vars.RAG_EVAL_BASELINE }}
+        run: ./scripts/rag-eval-nightly.sh
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-eval-${{ github.run_id }}
+          path: eval-artifacts
+          if-no-files-found: warn
+          retention-days: 30

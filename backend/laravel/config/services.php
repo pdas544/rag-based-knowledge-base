@@ -66,6 +66,17 @@ return [
         'timeout' => (int) env('CLAMAV_TIMEOUT', 60),
     ],
 
+    'rag' => [
+        'top_k' => (int) env('RAG_TOP_K', 5),
+        // Stronger/different model than the generator for LLM-as-judge runs.
+        // Empty = fall back to the configured chat model.
+        'judge_model' => env('OPENROUTER_JUDGE_MODEL', ''),
+        'min_recall_at_5' => (float) env('RAG_EVAL_MIN_RECALL_AT_5', 0.70),
+        'min_faithfulness' => (float) env('RAG_EVAL_MIN_FAITHFULNESS', 0.70),
+        'max_false_answer_rate' => (float) env('RAG_EVAL_MAX_FALSE_ANSWER_RATE', 0.20),
+        'max_p95_ms' => (int) env('RAG_EVAL_MAX_P95_MS', 30000),
+    ],
+
     'moderation' => [
         // Optional LLM judge (any OpenRouter chat model). Empty = blocklist only.
         'model' => env('MODERATION_MODEL', ''),

@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Conversation;
 use App\Models\Document;
 use App\Models\DocumentChunk;
+use App\Models\EvalRun;
+use App\Services\LLM\ModelPricing;
 use App\Services\Qdrant\QdrantService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class AdminDocumentController extends Controller
 {
@@ -45,22 +49,6 @@ class AdminDocumentController extends Controller
         return response()->json(['document' => $document->fresh()]);
     }
 
-    /** Blended $/1M tokens; free-tier models cost nothing. */
-    private static function blendedRate(?string $model): float
-    {
-        $model = (string) $model;
-        if (str_ends_with($model, ':free')) {
-            return 0.0;
-        }
-
-        return match (true) {
-            str_contains($model, 'gpt-4o-mini') => 0.30,
-            str_contains($model, 'gemini') && str_contains($model, 'flash') => 0.40,
-            str_contains($model, 'claude-3.5-sonnet') => 3.0,
-            default => 0.50,
-        };
-    }
-
     public function stats()
     {
         // 3.3 Token usage aggregates (DB-backed; no log parsing)
@@ -68,6 +56,8 @@ class AdminDocumentController extends Controller
             ->groupBy('model')->get();
         $totalTokens = (int) $byModel->sum('tokens');
         $totalMessages = (int) $byModel->sum('messages');
+        $latestEval = EvalRun::query()->latest('id')->first();
+        $today = now()->toDateString();
 
         return response()->json([
             'total_documents' => Document::count(),
@@ -78,8 +68,20 @@ class AdminDocumentController extends Controller
             'total_tokens_used' => $totalTokens,
             'total_messages' => $totalMessages,
             'avg_tokens_per_message' => $totalMessages > 0 ? round($totalTokens / $totalMessages, 1) : 0,
-            'estimated_cost_usd' => round($byModel->sum(fn ($r) => $r->tokens * self::blendedRate($r->model) / 1_000_000), 4),
+            'estimated_cost_usd' => round($byModel->sum(fn ($r) => ModelPricing::estimateCost($r->model, (int) $r->tokens)), 4),
             'by_model' => $byModel,
+            'eval' => $latestEval ? [
+                'run_id' => $latestEval->run_id,
+                'mode' => $latestEval->mode,
+                'created_at' => $latestEval->created_at,
+                'metrics' => $latestEval->metrics,
+            ] : null,
+            'llm_telemetry' => [
+                'retries_today' => (int) Cache::get("llm:retries:{$today}", 0),
+                'fallbacks_today' => (int) Cache::get("llm:fallbacks:{$today}", 0),
+                'circuit_open_today' => (int) Cache::get("llm:circuit_open:{$today}", 0),
+                'circuit_opened_today' => (int) Cache::get("llm:circuit_opened:{$today}", 0),
+            ],
         ]);
     }
 }
